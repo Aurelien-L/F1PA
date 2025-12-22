@@ -1,0 +1,26 @@
+# Core
+pandas
+numpy
+requests
+beautifulsoup4
+lxml
+
+# Database
+psycopg2-binary
+sqlalchemy
+
+# Weather
+meteostat
+
+# Airflow dependencies (custom tasks)
+python-dateutil
+
+# ML
+scikit-learn
+xgboost
+
+# MLflow
+mlflow
+
+# Monitoring
+evidently
