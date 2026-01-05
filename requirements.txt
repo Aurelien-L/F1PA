@@ -4,6 +4,8 @@ numpy
 requests
 beautifulsoup4
 lxml
+matplotlib
+seaborn
 
 # Database
 psycopg2-binary
