@@ -1,5 +1,0 @@
-year,url,rows,status
-2022,https://api.openf1.org/v1/sessions?year=2022,0,EMPTY
-2023,https://api.openf1.org/v1/sessions?year=2023,118,OK
-2024,https://api.openf1.org/v1/sessions?year=2024,123,OK
-2025,https://api.openf1.org/v1/sessions?year=2025,123,OK
