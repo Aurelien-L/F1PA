@@ -1,24 +1,90 @@
+# =========================
 # Python
+# =========================
 __pycache__/
-*.pyc
-.env
-.venv
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.cache/
+pytestdebug.log
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.code-workspace
 
 # Jupyter
 .ipynb_checkpoints/
+*.nbconvert.ipynb
 
-# Data
-data/raw/
-data/processed/
-data/features/
+# =========================
+# Project: Data artifacts
+# =========================
+# Ignore all local data by default
+data/**
 
-# MLflow
-mlruns/
+# Allow keeping directory structure in git
+!data/**/.gitkeep
+!data/**/README.md
 
-# Airflow
+# If you want to version small samples only, use this convention:
+# data/samples/... can be committed
+!data/samples/**
+!data/samples/**/.gitkeep
+!data/samples/**/README.md
+
+# Optional: keep lightweight reference extracts (only if you explicitly want them versioned)
+# (commented out by default)
+# !data/extract/wikipedia/circuits_wikipedia_extract.csv
+
+# =========================
+# Airflow / Logs
+# =========================
 airflow/logs/
-airflow/plugins/__pycache__/
+airflow/.airflowignore
+logs/
+*.log
 
-# OS
-.DS_Store
-Thumbs.db
+# =========================
+# MLflow
+# =========================
+mlruns/
+mlartifacts/
+
+# =========================
+# Docker / runtime volumes
+# =========================
+*.pid
+*.sock
+
+# =========================
+# Secrets
+# =========================
+.env
+.env.*
+*.pem
+*.key
+
+# =========================
+# Temp / downloads
+# =========================
+tmp/
+temp/
+downloads/
