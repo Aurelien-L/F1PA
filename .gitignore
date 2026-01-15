@@ -40,15 +40,14 @@ Thumbs.db
 # Ignore all local data by default
 data/**
 
-# Allow keeping directory structure in git
+# Re-allow directory traversal to samples (required)
+!data/
+!data/samples/
+!data/samples/**
+
+# Keep minimal structure/docs if needed
 !data/**/.gitkeep
 !data/**/README.md
-
-# If you want to version small samples only, use this convention:
-# data/samples/... can be committed
-!data/samples/**
-!data/samples/**/.gitkeep
-!data/samples/**/README.md
 
 # Optional: keep lightweight reference extracts (only if you explicitly want them versioned)
 # (commented out by default)
