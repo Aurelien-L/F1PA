@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--overrides",
-        default=None,
+        default="etl/extract/matching/openf1_wikipedia_overrides.csv",
         help="Optional overrides CSV with columns: circuit_key, chosen_candidate_rank",
     )
     p.add_argument(
