@@ -38,7 +38,7 @@ F1PA/
 ├── monitoring/          # MLflow / Evidently
 ├── tests/               # Tests unitaires
 │
-├── docker-compose.yml   # PostgreSQL + MLflow + Airflow
+├── docker-compose.yml   # PostgreSQL + MLflow
 └── requirements.txt
 ```
 
@@ -147,7 +147,6 @@ evidently                  # Monitoring
 - Docker + Docker Compose
 - PostgreSQL 15
 - MLflow server (port 5000)
-- Apache Airflow (port 8080) - optionnel
 
 ---
 

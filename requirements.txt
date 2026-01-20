@@ -13,8 +13,6 @@ sqlalchemy
 
 # Weather
 meteostat
-
-# Airflow dependencies (custom tasks)
 python-dateutil
 
 # ML
