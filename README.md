@@ -184,7 +184,38 @@ docker-compose up -d postgres mlflow
 
 ## Utilisation
 
-### Pipeline complet Extract → Transform → Load
+### Pipeline complet - Orchestrateur global (recommandé) ⭐
+
+Le script [run_full_pipeline.py](run_full_pipeline.py) exécute automatiquement Extract → Transform → Load dans le bon ordre :
+
+```bash
+# Exécution complète du pipeline (15-20 minutes)
+python run_full_pipeline.py --years 2023 2024 2025
+
+# Options disponibles
+python run_full_pipeline.py --years 2023 2024 2025 --skip-extract  # Skip Extract si données déjà extraites
+python run_full_pipeline.py --years 2023 2024 2025 --skip-load     # Skip Load si DB déjà peuplée
+python run_full_pipeline.py --years 2023 2024 2025 --force         # Force ré-exécution
+python run_full_pipeline.py --verify-only                          # Vérification qualité uniquement
+```
+
+**Fonctionnalités** :
+- ✅ Gère automatiquement l'ordre d'exécution et les dépendances
+- ✅ Résout la dépendance `extract_drivers` ↔ `Transform step 01`
+- ✅ Vérifie les prérequis (Docker, Python, venv)
+- ✅ Détecte les données existantes (évite re-téléchargement)
+- ✅ Affiche la progression en temps réel avec logs clairs
+- ✅ Validation qualité des données à la fin (dataset + PostgreSQL)
+- ✅ Gestion d'erreurs robuste avec messages explicites
+
+**Validation automatique** :
+- Dataset : 71,645 laps | 31 colonnes | 0 doublon | 0 target manquant
+- PostgreSQL : Intégrité clés étrangères 100%
+- Météo : 100% complète (températures 14.6°C - 33.0°C)
+
+### Pipeline manuel (étape par étape)
+
+Si vous préférez exécuter manuellement :
 
 ```bash
 # 1. Extract (sessions + circuits + météo)
@@ -204,7 +235,23 @@ docker-compose up -d postgres
 python etl/load/load_all_docker.py
 ```
 
-**Note** : Le script `extract_drivers.py` a une dépendance sur `sessions_scope` créé dans Transform step 01. Voir [etl/extract/README_DRIVERS.md](etl/extract/README_DRIVERS.md) pour l'explication architecturale.
+---
+
+### Vérification qualité des données
+
+```bash
+# Vérifier la cohérence des données sans ré-exécuter le pipeline
+python run_full_pipeline.py --verify-only
+```
+
+**Contrôles effectués** :
+- ✅ Nombre de lignes/colonnes du dataset ML
+- ✅ Doublons sur clé composite
+- ✅ Valeurs target manquantes
+- ✅ Comptage tables PostgreSQL
+- ✅ Intégrité clés étrangères
+
+---
 
 ### Requêtes SQL d'exemple
 
@@ -220,6 +267,73 @@ GROUP BY d.driver_number, d.name_acronym, d.full_name
 ORDER BY total_laps DESC
 LIMIT 10;
 ```
+
+---
+
+## Troubleshooting
+
+### Docker non démarré
+
+```
+[ERROR] Docker not found
+```
+**Solution** : Démarrer Docker Desktop avant d'exécuter le pipeline.
+
+### PostgreSQL ne démarre pas
+
+**Vérifier les logs** :
+```bash
+docker logs f1pa_postgres
+```
+
+**Redémarrer proprement** :
+```bash
+docker-compose down
+docker-compose up -d postgres
+```
+
+### Réinitialiser complètement la base de données
+
+```bash
+# Supprimer le volume PostgreSQL
+docker-compose down -v
+
+# Redémarrer PostgreSQL
+docker-compose up -d postgres
+
+# Recharger les données
+python run_full_pipeline.py --years 2023 2024 2025 --skip-extract --skip-transform
+```
+
+### Le pipeline est lent (Extract)
+
+L'étape Extract peut prendre 10-15 minutes à cause des téléchargements API/Web.
+
+**Solution 1** : Si données déjà extraites, utiliser `--skip-extract`
+```bash
+python run_full_pipeline.py --years 2023 2024 2025 --skip-extract
+```
+
+**Solution 2** : Réduire le nombre d'années
+```bash
+python run_full_pipeline.py --years 2024 2025
+```
+
+### Données manquantes
+
+```
+[ERROR] sessions_scope not found
+```
+**Solution** : Ne pas utiliser `--skip-transform` si les données Transform n'existent pas encore.
+
+---
+
+## Documentation détaillée
+
+**README par phase ETL** :
+- [etl/extract/README.md](etl/extract/README.md) - Explications extraction des données
+- [etl/transform/README.md](etl/transform/README.md) - Traitement et enrichissement des données
+- [etl/load/README.md](etl/load/README.md) - Architecture PostgreSQL, exemples SQL
 
 ---
 
