@@ -51,6 +51,9 @@ def main() -> int:
     # 2) Build circuits used (based on sessions)
     run_module("etl.extract.openf1.build_circuits_used", ["--years", *map(str, years)])
 
+    # Note: extract_drivers.py NOT included in orchestrator (see etl/extract/README_DRIVERS.md)
+    # It requires sessions_scope from Transform step 01 and must be run manually after that step
+
     finished = datetime.now(timezone.utc).isoformat()
     manifest = {
         "step": "extract_openf1",

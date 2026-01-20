@@ -87,3 +87,8 @@ mlartifacts/
 tmp/
 temp/
 downloads/
+
+# =========================
+# Claude AI
+# =========================
+.claude/
