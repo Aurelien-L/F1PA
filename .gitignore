@@ -54,18 +54,17 @@ data/**
 # !data/extract/wikipedia/circuits_wikipedia_extract.csv
 
 # =========================
-# Airflow / Logs
+# ML
 # =========================
-airflow/logs/
-airflow/.airflowignore
-logs/
-*.log
+models/
+reports/
 
 # =========================
 # MLflow
 # =========================
 mlruns/
 mlartifacts/
+mlflow_db/
 
 # =========================
 # Docker / runtime volumes
