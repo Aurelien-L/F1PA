@@ -18,9 +18,15 @@ python-dateutil
 # ML
 scikit-learn
 xgboost
+cloudpickle
 
 # MLflow
 mlflow
+
+# API
+fastapi
+uvicorn[standard]
+pydantic
 
 # Monitoring
 evidently
