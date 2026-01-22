@@ -31,5 +31,29 @@ services:
       - ./mlflow_db:/mlflow
     working_dir: /
 
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: f1pa_api
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=f1pa_db
+      - POSTGRES_USER=f1pa
+      - POSTGRES_PASSWORD=f1pa
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_EXPERIMENT_NAME=F1PA_LapTime_Prediction
+      - DEFAULT_MODEL_FAMILY=xgboost
+      - DEFAULT_MODEL_STRATEGY=robust
+    depends_on:
+      - postgres
+      - mlflow
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+
 volumes:
   postgres_data:
