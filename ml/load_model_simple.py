@@ -29,13 +29,13 @@ MODEL_XGBOOST_PATH = MODELS_DIR / "xgboost_gridsearch_model.pkl"
 MODEL_RF_PATH = MODELS_DIR / "random_forest_gridsearch_model.pkl"
 
 
-def get_best_model_from_mlflow(strategy="robust", model_family="xgboost"):
+def get_best_model_from_mlflow(strategy="robust", model_family=None):
     """
     Récupère le meilleur modèle depuis MLflow selon une stratégie.
 
     Args:
-        strategy: "robust" (meilleur overfitting < 5.0) ou "mae" (meilleur MAE)
-        model_family: "xgboost" ou "random_forest"
+        strategy: "robust" (meilleur overfitting) ou "mae" (meilleur MAE absolu)
+        model_family: "xgboost", "random_forest" ou None (tous les modèles)
 
     Returns:
         run_id: ID du meilleur run
@@ -48,21 +48,25 @@ def get_best_model_from_mlflow(strategy="robust", model_family="xgboost"):
     if not experiment:
         raise ValueError(f"Experiment '{MLFLOW_EXPERIMENT_NAME}' not found. Have you run training?")
 
-    # Chercher les runs avec GridSearch du bon modèle
+    # Chercher TOUS les runs (baseline + gridsearch) du bon modèle
+    if model_family:
+        filter_string = f"tags.model_family = '{model_family}'"
+    else:
+        filter_string = ""  # Tous les modèles
+
     runs = mlflow.search_runs(
         experiment_ids=[experiment.experiment_id],
-        filter_string=f"tags.model_family = '{model_family}' AND tags.tuning_method = 'gridsearch'",
+        filter_string=filter_string,
         order_by=["metrics.test_mae ASC"]
     )
 
     if runs.empty:
-        raise ValueError(f"No {model_family} GridSearch runs found in MLflow")
+        raise ValueError(f"No runs found in MLflow for family '{model_family}'")
 
     if strategy == "robust":
-        # Meilleur overfitting parmi les MAE < 1.5
+        # Stratégie robust: meilleur overfitting ratio (généralisation)
         robust_runs = runs[
-            (runs['metrics.overfitting_ratio'] < 5.0) &
-            (runs['metrics.test_mae'] < 1.5)
+            runs['metrics.overfitting_ratio'] < 5.0
         ].sort_values('metrics.overfitting_ratio')
 
         if robust_runs.empty:
@@ -71,15 +75,24 @@ def get_best_model_from_mlflow(strategy="robust", model_family="xgboost"):
         else:
             best_run = robust_runs.iloc[0]
     else:  # strategy == "mae"
+        # Stratégie MAE: meilleur MAE absolu sur test
         best_run = runs.iloc[0]
+
+    # Get actual model family from the selected run's tags
+    actual_model_family = best_run.get('tags.model_family', 'unknown')
+    run_name = best_run.get('tags.mlflow.runName', 'unknown')
+
+    print(f"Selected model: {run_name} (MAE: {best_run['metrics.test_mae']:.3f}s)")
 
     return best_run['run_id'], {
         'test_mae': best_run.get('metrics.test_mae', 0.0),
         'test_r2': best_run.get('metrics.test_r2', 0.0),
         'test_rmse': best_run.get('metrics.test_rmse', 0.0),
         'overfitting_ratio': best_run.get('metrics.overfitting_ratio', 0.0),
-        'cv_mae': best_run.get('metrics.cv_mae', 0.0),
-        'cv_r2': best_run.get('metrics.cv_r2', 0.0)
+        'cv_mae': best_run.get('metrics.cv_mae_mean', 0.0),
+        'cv_r2': best_run.get('metrics.cv_r2_mean', 0.0),
+        'model_family': actual_model_family,
+        'run_name': run_name
     }
 
 
@@ -110,8 +123,10 @@ def load_model_from_mlflow(strategy="robust", model_family="xgboost", run_id=Non
             'test_r2': run.data.metrics.get('test_r2'),
             'test_rmse': run.data.metrics.get('test_rmse'),
             'overfitting_ratio': run.data.metrics.get('overfitting_ratio'),
-            'cv_mae': run.data.metrics.get('cv_mae'),
-            'cv_r2': run.data.metrics.get('cv_r2')
+            'cv_mae': run.data.metrics.get('cv_mae_mean'),
+            'cv_r2': run.data.metrics.get('cv_r2_mean'),
+            'model_family': run.data.tags.get('model_family'),
+            'run_name': run.data.tags.get('mlflow.runName')
         }
 
     # Télécharger l'artifact du modèle
@@ -122,8 +137,13 @@ def load_model_from_mlflow(strategy="robust", model_family="xgboost", run_id=Non
     with open(artifact_path, 'rb') as f:
         model = cloudpickle.load(f)
 
+    # Use actual model_family from metrics if available (auto-selection case)
+    actual_family = metrics.get('model_family', model_family) or 'unknown'
+    run_name = metrics.get('run_name', 'unknown')
+
     print(f"Modèle chargé depuis MLflow ({strategy} strategy)")
-    print(f"  Model Family: {model_family}")
+    print(f"  Model Family: {actual_family}")
+    print(f"  Run Name: {run_name}")
     print(f"  Run ID: {run_id}")
 
     if metrics.get('test_mae') is not None:
@@ -142,8 +162,9 @@ def load_model_from_mlflow(strategy="robust", model_family="xgboost", run_id=Non
     info = {
         'run_id': run_id,
         'strategy': strategy,
-        'model_family': model_family,
-        **metrics
+        'model_family': actual_family,
+        'run_name': run_name,
+        **{k: v for k, v in metrics.items() if k not in ('model_family', 'run_name')}
     }
 
     return model, info

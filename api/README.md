@@ -2,12 +2,15 @@
 
 API REST pour accéder aux données F1 et aux prédictions de temps au tour.
 
-## Fonctionnalités
+## Objectif du modèle ML
 
-- **Prédictions ML** : Exposition du modèle XGBoost pour prédire les temps au tour
-- **Accès aux données** : Endpoints pour consulter circuits, pilotes, sessions et tours
-- **Authentification** : Sécurisation des endpoints via HTTP Basic Auth
-- **Documentation** : Interface Swagger UI intégrée
+Le modèle prédit le **temps au tour d'un pilote AVANT qu'il roule**, basé sur :
+- Sa performance historique (`driver_perf_score`, `driver_avg_laptime`)
+- Les caractéristiques du circuit (`circuit_avg_laptime`)
+- Les conditions météo (`temp`, `rhum`, `pres`)
+- Les vitesses attendues (`st_speed`, `i1_speed`, `i2_speed`)
+
+**Important** : Les temps secteurs (`duration_sector_*`) ne sont PAS utilisés car ils représentent des données du tour en cours, ce qui rendrait la prédiction triviale (lap_time ≈ sum(sectors)).
 
 ## Démarrage
 
@@ -61,7 +64,7 @@ Une fois l'API lancée, accédez à :
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
 | GET | `/predict/model` | Informations sur le modèle chargé |
-| POST | `/predict/lap` | Prédiction pour un tour (JSON body) |
+| POST | `/predict/lap` | Prédiction pour un pilote/circuit (JSON body) |
 | POST | `/predict/batch` | Prédictions par lot (jusqu'à 1000) |
 | POST | `/predict/simple` | Prédiction via query params |
 
@@ -82,25 +85,26 @@ Une fois l'API lancée, accédez à :
 
 ## Exemples d'utilisation
 
-### Prédiction de temps au tour
+### Prédiction de performance
 
 ```bash
 curl -u f1pa:f1pa -X POST http://localhost:8000/predict/lap \
   -H "Content-Type: application/json" \
   -d '{
     "features": {
+      "driver_number": 1,
+      "circuit_key": 7,
       "st_speed": 310.5,
       "i1_speed": 295.2,
       "i2_speed": 288.1,
-      "duration_sector_1": 28.5,
-      "duration_sector_2": 35.2,
-      "duration_sector_3": 26.8,
       "temp": 25.0,
       "rhum": 45.0,
       "pres": 1013.0,
       "lap_number": 15,
       "year": 2025,
-      "circuit_avg_laptime": 92.5
+      "circuit_avg_laptime": 92.5,
+      "driver_avg_laptime": 91.2,
+      "driver_perf_score": -1.3
     }
   }'
 ```
@@ -123,8 +127,8 @@ Réponse :
 
 ```bash
 curl -u f1pa:f1pa -X POST "http://localhost:8000/predict/simple?\
-st_speed=310&i1_speed=295&i2_speed=288&\
-duration_sector_1=28.5&duration_sector_2=35.2&duration_sector_3=26.8"
+driver_number=1&circuit_key=7&\
+st_speed=310&i1_speed=295&i2_speed=288"
 ```
 
 ### Récupérer les circuits
@@ -133,25 +137,19 @@ duration_sector_1=28.5&duration_sector_2=35.2&duration_sector_3=26.8"
 curl -u f1pa:f1pa http://localhost:8000/data/circuits
 ```
 
-Réponse :
-```json
-[
-  {
-    "circuit_key": 1,
-    "circuit_short_name": "Bahrain",
-    "location": "Sakhir",
-    "country_name": "Bahrain",
-    "country_code": "BH"
-  },
-  ...
-]
-```
-
-### Récupérer les tours avec filtres
+### Récupérer le temps moyen d'un circuit
 
 ```bash
-# Tours du pilote 1 (Verstappen) en 2024, page 2
-curl -u f1pa:f1pa "http://localhost:8000/data/laps?driver_number=1&year=2024&page=2&page_size=50"
+curl -u f1pa:f1pa http://localhost:8000/data/circuits/7/avg-laptime
+```
+
+Réponse :
+```json
+{
+  "circuit_key": 7,
+  "avg_laptime_seconds": 92.543,
+  "avg_laptime_formatted": "1:32.543"
+}
 ```
 
 ### Statistiques du dataset
@@ -160,37 +158,23 @@ curl -u f1pa:f1pa "http://localhost:8000/data/laps?driver_number=1&year=2024&pag
 curl -u f1pa:f1pa http://localhost:8000/data/stats
 ```
 
-Réponse :
-```json
-{
-  "total_laps": 71645,
-  "total_circuits": 24,
-  "total_drivers": 26,
-  "total_sessions": 189,
-  "years": [2023, 2024, 2025],
-  "date_range": {
-    "min": "2023-03-03",
-    "max": "2025-03-16"
-  }
-}
-```
-
 ## Features ML (pour les prédictions)
 
-| Feature | Description | Plage |
-|---------|-------------|-------|
-| `st_speed` | Vitesse au speed trap (km/h) | 0-400 |
-| `i1_speed` | Vitesse intermédiaire 1 (km/h) | 0-400 |
-| `i2_speed` | Vitesse intermédiaire 2 (km/h) | 0-400 |
-| `duration_sector_1` | Temps secteur 1 (s) | > 0 |
-| `duration_sector_2` | Temps secteur 2 (s) | > 0 |
-| `duration_sector_3` | Temps secteur 3 (s) | > 0 |
-| `temp` | Température (°C) | -20 à 60 |
-| `rhum` | Humidité relative (%) | 0-100 |
-| `pres` | Pression atmosphérique (hPa) | 900-1100 |
-| `lap_number` | Numéro du tour | >= 1 |
-| `year` | Année | 2023-2030 |
-| `circuit_avg_laptime` | Temps moyen du circuit (s) | 60-150 |
+| Feature | Description | Source |
+|---------|-------------|--------|
+| `driver_number` | Numéro du pilote | Input |
+| `circuit_key` | Clé du circuit | Input |
+| `st_speed` | Vitesse speed trap attendue (km/h) | Input |
+| `i1_speed` | Vitesse intermédiaire 1 (km/h) | Input |
+| `i2_speed` | Vitesse intermédiaire 2 (km/h) | Input |
+| `temp` | Température (°C) | Input |
+| `rhum` | Humidité relative (%) | Input |
+| `pres` | Pression atmosphérique (hPa) | Input |
+| `lap_number` | Numéro du tour prévu | Input |
+| `year` | Année | Input |
+| `circuit_avg_laptime` | Temps moyen du circuit (s) | `/data/circuits/{id}/avg-laptime` |
+| `driver_avg_laptime` | Temps moyen du pilote (s) | Calculé |
+| `driver_perf_score` | Score de performance (négatif = plus rapide) | Calculé |
 
 ## Codes de réponse
 

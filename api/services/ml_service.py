@@ -120,48 +120,44 @@ class MLService:
         """
         Prepare features for prediction.
 
-        Transforms raw input features into the format expected by the model,
-        including derived features.
+        Transforms raw input features into the format expected by the model.
+
+        IMPORTANT: Ce modèle prédit la PERFORMANCE (temps au tour AVANT le tour),
+        donc il n'utilise PAS les temps secteurs (qui sont des données du tour en cours).
+
+        Features utilisées (15 total, dans l'ordre du modèle):
+        - Context: year, circuit_key, driver_number, lap_number
+        - Vitesses: st_speed, i1_speed, i2_speed
+        - Météo: temp, rhum, pres
+        - Performance encodings: circuit_avg_laptime, driver_avg_laptime
+        - Derived: avg_speed, lap_progress, driver_perf_score
         """
         # Calculate derived features
         avg_speed = (features["st_speed"] + features["i1_speed"] + features["i2_speed"]) / 3
-        total_sector_time = (
-            features["duration_sector_1"] +
-            features["duration_sector_2"] +
-            features["duration_sector_3"]
-        )
-
-        # Avoid division by zero
-        if total_sector_time > 0:
-            sector_1_ratio = features["duration_sector_1"] / total_sector_time
-            sector_2_ratio = features["duration_sector_2"] / total_sector_time
-        else:
-            sector_1_ratio = 0.33
-            sector_2_ratio = 0.33
 
         # Lap progress (normalized lap number, assuming ~70 laps max)
         lap_progress = min(features["lap_number"] / 70.0, 1.0)
 
-        # Feature vector in expected order (17 features after selection)
-        # Based on ml/config.py and preprocessing.py
+        # Feature vector in expected order (must match ml/preprocessing.py output)
+        # Order: year, circuit_key, driver_number, lap_number, st_speed, i1_speed, i2_speed,
+        #        temp, rhum, pres, circuit_avg_laptime, driver_avg_laptime,
+        #        avg_speed, lap_progress, driver_perf_score
         feature_vector = [
+            features["year"],
+            features["circuit_key"],
+            features["driver_number"],
+            features["lap_number"],
             features["st_speed"],
             features["i1_speed"],
             features["i2_speed"],
-            features["duration_sector_1"],
-            features["duration_sector_2"],
-            features["duration_sector_3"],
             features["temp"],
             features["rhum"],
             features["pres"],
-            features["lap_number"],
-            features["year"],
             features["circuit_avg_laptime"],
+            features["driver_avg_laptime"],
             avg_speed,
-            total_sector_time,
-            sector_1_ratio,
-            sector_2_ratio,
             lap_progress,
+            features["driver_perf_score"],
         ]
 
         return np.array([feature_vector])

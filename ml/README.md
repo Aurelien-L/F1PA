@@ -1,10 +1,10 @@
 # F1PA - Machine Learning Pipeline
 
-**Prédiction des Temps au Tour en Formule 1**
+**Prédiction de Performance des Temps au Tour en Formule 1**
 
 ---
 
-## 📋 Table des Matières
+## Table des Matières
 
 1. [Vue d'ensemble](#vue-densemble)
 2. [Architecture](#architecture)
@@ -22,21 +22,33 @@
 
 ## Vue d'ensemble
 
-Le projet F1PA implémente un système de prédiction des temps au tour en Formule 1 basé sur des données publiques (2023-2025). L'objectif est de prédire le `lap_duration` (durée du tour en secondes) en utilisant uniquement des données accessibles publiquement.
+Le projet F1PA implémente un système de **prédiction de performance** des temps au tour en Formule 1. L'objectif est de prédire le `lap_duration` (durée du tour en secondes) **AVANT que le pilote ne roule**, basé sur ses performances historiques et les conditions.
 
 ### Objectif
 
 Prédire le temps au tour d'un pilote en fonction de:
-- **Données sportives**: Vitesses (st_speed, i1_speed, i2_speed), temps secteurs
-- **Données météo**: Température, humidité, pression, vent, précipitations
-- **Contexte**: Circuit, pilote, progression dans la course
+- **Performance historique**: `driver_perf_score`, `driver_avg_laptime`
+- **Caractéristiques circuit**: `circuit_avg_laptime`, `circuit_key`
+- **Données météo**: Température, humidité, pression
+- **Vitesses attendues**: `st_speed`, `i1_speed`, `i2_speed`
+- **Contexte**: Numéro du tour, année
+
+### Important: Prédiction vs Calcul
+
+**Les temps secteurs (`duration_sector_*`) ne sont PAS utilisés** car ils représentent des données du tour en cours. Utiliser ces données rendrait la prédiction triviale :
+
+```
+lap_duration ≈ sector_1 + sector_2 + sector_3
+```
+
+Notre modèle prédit la **performance** attendue, pas un simple calcul de somme.
 
 ### Contraintes
 
-- ✅ Données publiques uniquement (pas de télémétrie voiture)
-- ✅ Split temporel (2023-2024 train, 2025 test)
-- ✅ Régularisation anti-overfitting
-- ✅ Tracking MLflow professionnel
+- Données publiques uniquement (pas de télémétrie voiture)
+- Split stratifié 80/20 par circuit
+- Régularisation anti-overfitting
+- Tracking MLflow professionnel
 
 ---
 
@@ -57,7 +69,7 @@ ml/
 ```
 Données brutes (CSV)
     ↓
-[preprocessing.py] → Feature engineering (17 features)
+[preprocessing.py] → Feature engineering (15 features)
     ↓
 [train.py] → Entraînement (XGBoost + Random Forest)
     ↓
@@ -144,91 +156,77 @@ python -m ml.load_model_simple
 |----------|--------|
 | **Période** | 2023-2025 (3 saisons) |
 | **Samples totaux** | 71,645 tours |
-| **Train** | 47,266 tours (2023-2024) - 66% |
-| **Test** | 24,379 tours (2025) - 34% |
-| **Split** | Temporel (évite data leakage) |
-| **Features** | 17 (après feature selection) |
+| **Train** | 57,316 tours (80%) |
+| **Test** | 14,329 tours (20%) |
+| **Split** | Stratifié par circuit |
+| **Features** | 15 |
 
 ### Variables Clés
 
-**Sportives**:
-- `st_speed`, `i1_speed`, `i2_speed`: Vitesses mesurées
-- `duration_sector_1/2/3`: Temps par secteur
-- `lap_number`: Position dans la course
+**Identifiants**:
+- `circuit_key`: Identifiant circuit
+- `driver_number`: Numéro pilote
+- `year`: Saison
+
+**Vitesses (indicateurs de performance)**:
+- `st_speed`: Vitesse speed trap (km/h)
+- `i1_speed`: Vitesse intermédiaire 1 (km/h)
+- `i2_speed`: Vitesse intermédiaire 2 (km/h)
 
 **Météo**:
 - `temp`: Température (°C)
 - `pres`: Pression atmosphérique (hPa)
 - `rhum`: Humidité relative (%)
-- `wspd`: Vitesse du vent (m/s)
 
-**Contexte**:
-- `circuit_key`: Identifiant circuit
-- `driver_number`: Numéro pilote
-- `year`: Saison
+**Performance encodings**:
+- `circuit_avg_laptime`: Temps moyen du circuit
+- `driver_avg_laptime`: Temps moyen du pilote
+- `driver_perf_score`: Score de performance (négatif = plus rapide)
 
 ---
 
 ## Feature Engineering
 
-### 1. Imputation des Valeurs Manquantes
+### 1. Target Encoding (Performance)
 
-**Stratégie**: Imputation groupée (circuit, pilote)
-- Vitesses et temps secteurs → Moyenne par (circuit, pilote)
-- Météo → Forward fill + médiane globale
+Le `driver_perf_score` encode la performance relative du pilote:
 
 ```python
-# Exemple
-df['st_speed'] = df.groupby(['circuit_key', 'driver_number'])['st_speed'].transform(
-    lambda x: x.fillna(x.mean())
-)
+# Score = différence entre temps pilote et moyenne circuit
+driver_perf_score = driver_avg_laptime - circuit_avg_laptime
 ```
 
-### 2. Features Dérivées (6)
+- **Score négatif** = Pilote plus rapide que la moyenne
+- **Score positif** = Pilote plus lent que la moyenne
+
+### 2. Features Dérivées
 
 | Feature | Formule | Utilité |
 |---------|---------|---------|
 | `avg_speed` | Moyenne(st, i1, i2) | Vitesse moyenne globale |
-| `total_sector_time` | Σ(sector_1,2,3) | Temps tour estimé |
-| `sector_1_ratio` | sector_1 / total | Style pilotage (freinage) |
-| `sector_2_ratio` | sector_2 / total | Style pilotage (virage) |
-| `weather_severity` | wspd × prcp | Difficulté météo |
-| `lap_progress` | lap / max_lap | Dégradation pneus |
+| `lap_progress` | lap_number / 70 | Progression dans la course |
 
-### 3. Target Encoding (3 features)
+>`lap_progress`est calculé avec une estimation de *70* comme nombre total de tours sur le GP. 70 est un **compromis arbitraire**  venant d'une valeur médiane approximative du nombre de tours. Cette solution permet tout de même de capturer la **tendance générale de dégradation des pneus** en compensant via `circuit_avg_laptime`, sans ajout de feature d'entrée ou de table.
 
-Encode les variables catégorielles par la moyenne du target:
+### 3. Features Finales (15)
 
-```python
-circuit_avg_laptime = mean(lap_duration | circuit)
-driver_avg_laptime = mean(lap_duration | driver)
-year_avg_laptime = mean(lap_duration | year)
-```
-
-**Avantage**: Capture l'effet spécifique de chaque circuit/pilote sur le temps au tour.
-
-### 4. Feature Selection
-
-**24 features initiales → 17 features finales**
-
-Supprimées (importance < 0.001):
-- `year_avg_laptime`, `prcp`, `wspd`, `cldc`, `wdir`
-- `weather_severity`, `driver_avg_laptime`
-
-**Top 10 Features par Importance**:
-
-| Rang | Feature | Importance | Type |
-|------|---------|------------|------|
-| 1 | lap_number | 22.9% | Progression |
-| 2 | lap_progress | 17.9% | Dégradation |
-| 3 | temp | 14.5% | Météo |
-| 4 | pres | 6.0% | Météo |
-| 5 | sector_1_ratio | 5.0% | Style |
-| 6 | sector_2_ratio | 4.9% | Style |
-| 7 | duration_sector_3 | 4.7% | Performance |
-| 8 | rhum | 4.0% | Météo |
-| 9 | duration_sector_1 | 3.4% | Performance |
-| 10 | circuit_avg_laptime | 3.3% | Contexte |
+| # | Feature | Type | Importance |
+|---|---------|------|------------|
+| 1 | `circuit_avg_laptime` | Encoding | 23.9% |
+| 2 | `avg_speed` | Derived | 16.8% |
+| 3 | `lap_number` | Context | 12.3% |
+| 4 | `lap_progress` | Derived | 11.4% |
+| 5 | `st_speed` | Speed | 6.7% |
+| 6 | `pres` | Weather | 6.1% |
+| 7 | `i2_speed` | Speed | 5.4% |
+| 8 | `i1_speed` | Speed | 4.5% |
+| 9 | `driver_perf_score` | Encoding | 3.6% |
+| 10 | `rhum` | Weather | 2.1% |
+| 11 | `driver_avg_laptime` | Encoding | 1.9% |
+| 12 | `temp` | Weather | 1.8% |
+| 13 | `circuit_key` | Context | 1.8% |
+| 14 | `driver_number` | Context | 1.1% |
+| 15 | `year` | Context | 0.7% |
 
 ---
 
@@ -239,81 +237,67 @@ Supprimées (importance < 0.001):
 4 modèles entraînés à chaque run:
 
 1. **XGBoost Baseline**: Configuration par défaut
-2. **XGBoost GridSearch V2.1**: Hyperparamètres optimisés + régularisation ⭐
+2. **XGBoost GridSearch**: Hyperparamètres optimisés
 3. **Random Forest Baseline**: Configuration par défaut
-4. **Random Forest GridSearch**: Hyperparamètres optimisés
+4. **Random Forest GridSearch**: Hyperparamètres optimisés (MEILLEUR)
 
-### XGBoost GridSearch V2.1 (RECOMMANDÉ)
+### Random Forest GridSearch (RECOMMANDÉ)
 
-**Hyperparamètres**:
+**Hyperparamètres optimaux**:
 
 ```python
 {
-    'n_estimators': 150,        # Nombre d'arbres
-    'max_depth': 5,             # Profondeur max (régularisation)
-    'learning_rate': 0.03,      # Taux d'apprentissage faible
-    'min_child_weight': 5,      # Régularisation (split minimum)
-    'gamma': 0.05,              # Régularisation (perte minimum)
-    'subsample': 0.75,          # 75% des données par arbre
-    'colsample_bytree': 0.75,   # 75% des features par arbre
-    'reg_alpha': 0.05,          # L1 regularization
-    'reg_lambda': 0.5           # L2 regularization
+    'n_estimators': 300,        # Nombre d'arbres
+    'max_depth': None,          # Pas de limite
+    'max_features': 0.7,        # 70% des features par split
+    'min_samples_split': 2,     # Minimum pour split
+    'min_samples_leaf': 1       # Minimum par feuille
 }
 ```
 
-**Stratégie Anti-Overfitting**:
-1. Réduction de la profondeur (max_depth: 5)
-2. Learning rate faible (0.03)
-3. Régularisation L1/L2
-4. Subsampling (données + features)
-5. Early stopping (via cross-validation)
+### Stratégie Anti-Overfitting
 
-### Évolution des Versions
-
-| Version | Strategy | Test MAE | Test R² | Overfitting | Note |
-|---------|----------|----------|---------|-------------|------|
-| **V1** | Baseline | **0.96s** ✅ | 0.675 | 11.76 ❌ | Performance max |
-| **V2.1** | Régularisée | 1.31s | **0.686** ✅ | **3.44** ✅ | **Production** ⭐ |
-
-**Trade-off V2.1**:
-- Sacrifie 0.35s de MAE
-- Gagne +30% en R²
-- Divise l'overfitting par 3
-- → **Meilleure généralisation sur données futures**
+1. **Split stratifié** par circuit (équilibre train/test)
+2. **Cross-validation 3-fold** pour validation robuste
+3. **GridSearch** pour optimisation automatique
+4. **Métriques multiples** (MAE, RMSE, R², overfitting ratio)
 
 ---
 
 ## Résultats
 
-### Métriques Finales (XGBoost V2.1)
+### Comparaison des Modèles
 
-**Test Set (2025)**:
-- **MAE**: 1.31s (erreur moyenne)
-- **RMSE**: 7.97s (pénalise erreurs extrêmes)
-- **R²**: 0.686 (68.6% variance expliquée)
-- **MAPE**: 114.8% (sensible aux valeurs proches de 0)
-- **Overfitting Ratio**: 3.44 (Train MAE: 0.38s vs Test MAE: 1.31s)
+| Modèle | Test MAE | Test R² | CV MAE | CV R² |
+|--------|----------|---------|--------|-------|
+| **RF GridSearch** | **1.070s** | 0.755 | **1.016s** | 0.800 |
+| XGBoost GridSearch | 1.127s | 0.698 | 1.069s | 0.797 |
+| RF Baseline | 1.130s | 0.780 | 1.090s | 0.805 |
+| XGBoost Baseline | 1.230s | 0.696 | 1.158s | 0.765 |
 
-**Cross-Validation (2023-2024)**:
-- **CV MAE**: 0.55s ± 0.07s
-- **CV R²**: 0.912 ± 0.069
+### Métriques Finales (Random Forest GridSearch)
+
+**Test Set (20%)**:
+- **MAE**: 1.070s (erreur moyenne)
+- **RMSE**: 12.56s (pénalise erreurs extrêmes)
+- **R²**: 0.755 (75.5% variance expliquée)
+- **MAPE**: 0.86%
+
+**Cross-Validation**:
+- **CV MAE**: 1.016s ± 0.035s
+- **CV R²**: 0.800 ± 0.023
 
 ### Analyse des Résultats
 
-**✅ Points Forts**:
-- Bonne généralisation (overfitting maîtrisé)
-- R² 0.686 excellent avec données publiques uniquement
-- Prédiction à ±1.3s du temps réel
-- Robuste aux changements de saison (concept drift géré)
+**Points Forts**:
+- Excellente généralisation (CV ≈ Test)
+- R² 0.755 avec données publiques uniquement
+- Prédiction à ±1.07s du temps réel
+- Pas de data leakage (split stratifié)
 
-**⚠️ Limitations**:
+**Limitations**:
 - Erreur plus élevée que les écuries F1 (MAE ~0.1-0.2s avec télémétrie)
-- Gap CV-Test (0.912 → 0.686) dû aux évolutions 2025
-- MAPE élevé (sensible aux tours lents: SC, VSC)
-
-**🔍 Concept Drift**:
-- Score: 0.23 (écart CV → Test)
-- Causes: Réglementations 2025, évolution pilotes
+- RMSE élevé dû aux outliers (tours lents: SC, VSC, problèmes)
 
 ---
 
@@ -324,12 +308,11 @@ Supprimées (importance < 0.001):
 ```python
 from ml.load_model_simple import load_model_from_mlflow
 
-# Stratégie "robust" (RECOMMANDÉ pour production)
-model, info = load_model_from_mlflow(strategy='robust', model_family='xgboost')
+# Stratégie "mae" : sélectionne le meilleur MAE absolu
+model, info = load_model_from_mlflow(strategy='mae', model_family=None)
 
-print(f"Run ID: {info['run_id']}")
+print(f"Model: {info.get('model_family')}")
 print(f"Test MAE: {info['test_mae']:.3f}s")
-print(f"Overfitting: {info['overfitting_ratio']:.2f}")
 
 # Prédiction
 import pandas as pd
@@ -339,28 +322,28 @@ predictions = model.predict(X_new)
 
 ### 2. Stratégies de Chargement
 
-**Stratégie "robust"** (défaut):
+**Stratégie "mae"** (recommandé pour API):
+- Sélectionne le modèle avec le meilleur Test MAE absolu
+- Actuellement: Random Forest GridSearch (1.070s)
+
+**Stratégie "robust"**:
 - Sélectionne le modèle avec le meilleur compromis robustesse/performance
-- Critères: Overfitting < 5.0, MAE < 1.5s
+- Critères: Overfitting < 5.0
 - Tri par overfitting croissant
 
-**Stratégie "mae"**:
-- Sélectionne le modèle avec le meilleur Test MAE absolu
-- Ignore l'overfitting
-
 ```python
-# Performance absolue
-model, info = load_model_from_mlflow(strategy='mae', model_family='xgboost')
+# Performance absolue (API default)
+model, info = load_model_from_mlflow(strategy='mae', model_family=None)
 
-# Random Forest
-model, info = load_model_from_mlflow(strategy='robust', model_family='random_forest')
+# Spécifier une famille
+model, info = load_model_from_mlflow(strategy='mae', model_family='random_forest')
 ```
 
 ### 3. Chargement d'un Run Spécifique
 
 ```python
 # Pour reproductibilité exacte
-run_id = "c8dfcd905f194ae598e62cb5505eb355"
+run_id = "1b311597c5e94874a616a71cf9d10e5d"
 model, info = load_model_from_mlflow(run_id=run_id)
 ```
 
@@ -370,17 +353,7 @@ model, info = load_model_from_mlflow(run_id=run_id)
 from ml.load_model_simple import load_model_local
 
 # Si MLflow indisponible
-model, info = load_model_local(model_family='xgboost')
-# Charge depuis models/xgboost_gridsearch_model.pkl
-```
-
-### 5. Afficher les Modèles Disponibles
-
-```python
-from ml.load_model_simple import show_models_info
-
-show_models_info()
-# Affiche tous les runs GridSearch avec métriques
+model, info = load_model_local(model_family='random_forest')
 ```
 
 ---
@@ -403,28 +376,13 @@ Pour chaque run:
 - `predictions_vs_actual.png`: Scatter plot prédictions
 - `residuals_distribution.png`: Distribution des résidus
 - `training_report.json`: Rapport complet (métriques, params)
-- `gridsearch_results.csv`: Résultats GridSearch (si applicable)
 
 ### Métriques Trackées
 
 - `test_mae`, `test_rmse`, `test_r2`, `test_mape`: Métriques test
 - `train_mae`, `train_rmse`, `train_r2`: Métriques train
 - `cv_mae`, `cv_r2`: Cross-validation (moyenne ± std)
-- `overfitting_ratio`: train_mae / test_mae
-- `concept_drift_score`: |cv_r2 - test_r2|
-
-### Persistance
-
-✅ **Les experiments et runs persistent** après redémarrage des containers grâce au volume Docker `./mlflow_db/`.
-
-**Vérification**:
-```bash
-# Redémarrer MLflow
-docker-compose restart mlflow
-
-# Les runs sont toujours là
-python -m ml.load_model_simple
-```
+- `overfitting_ratio`: test_mae / train_mae
 
 ### Interface Web
 
@@ -434,108 +392,46 @@ open http://localhost:5000
 
 # Voir les runs
 # → Experiments → F1PA_LapTime_Prediction
-
-# Voir les artifacts d'un run
-# → Run → Artifacts tab
 ```
 
 ---
 
 ## Améliorations Futures
 
-### Court Terme (Implémentables)
+### Court Terme
 
 1. **Données Supplémentaires**
    - SafetyCar/VSC (interruptions)
-   - Position en grille (qualification)
    - Compound pneus (Soft/Medium/Hard)
-   - Statut pneus (âge, état)
+   - Position qualification
 
-2. **Feature Engineering Avancé**
-   - Écart inter-quartile secteurs (outliers)
-   - Moving average 5 derniers tours (tendance)
-   - Features cycliques (lap_number → sin/cos)
-   - Interaction features (temp × rhum, wind × rain)
+2. **Feature Engineering**
+   - Moving average sur derniers tours
+   - Interaction features (temp × rhum)
 
 3. **Ensembling**
-   - Stacking XGBoost + Random Forest + Linear
-   - Blending predictions avec pondération optimale
-   - Voting classifier
+   - Stacking XGBoost + Random Forest
+   - Voting regressor
 
-4. **Optimisation Hyperparamètres**
-   - Bayesian optimization (Optuna, Hyperopt)
-   - Early stopping plus agressif
-   - Augmenter nombre CV folds (5 → 10)
+### Long Terme
 
-### Long Terme (Nécessite Données Privées)
-
-1. **Télémétrie Voiture**
-   - Setup aérodynamique (downforce)
+1. **Télémétrie** (données privées)
+   - Setup aérodynamique
    - Pression pneus, température freins
-   - Stratégie carburant
-   - DRS activation
 
 2. **Deep Learning**
-   - LSTM pour séries temporelles (tour par tour)
-   - Transformer avec attention mechanism
-   - Autoencoders pour feature extraction
-
-3. **Transfer Learning**
-   - Pré-entraîner sur F2/F3/Formula E
-   - Fine-tuner sur F1
-   - Domain adaptation
+   - LSTM pour séries temporelles
+   - Transformer avec attention
 
 ---
 
-## FAQ
+## Résumé
 
-### Q: Pourquoi MAE 1.31s au lieu de < 0.5s?
+**F1PA ML Pipeline** - Prédiction de performance des temps au tour F1:
 
-**R**: Avec données publiques uniquement, impossible d'atteindre MAE < 0.5s. Les écuries F1 (avec télémétrie complète) atteignent MAE ~0.1-0.2s. Notre 1.31s est excellent dans ce contexte.
-
-### Q: Pourquoi choisir V2.1 plutôt que V1 (meilleur MAE)?
-
-**R**: V1 a un overfitting de 11.76 (mémorise les données). V2.1 a overfitting de 3.44 (généralise mieux). En production, on préfère un modèle qui généralise sur données futures.
-
-### Q: Comment interpréter l'overfitting ratio?
-
-**R**:
-- **1.0-1.5**: Excellent (modèle généralise parfaitement)
-- **1.5-3.0**: Bon (légère mémorisation)
-- **3.0-5.0**: Acceptable (mémorisation modérée) ← V2.1 ici
-- **> 5.0**: Problématique (forte mémorisation) ← V1 ici
-
-### Q: Les runs MLflow sont-ils sauvegardés?
-
-**R**: Oui, grâce au volume Docker `./mlflow_db/`, tous les runs persistent après redémarrage. Vous pouvez arrêter/redémarrer les containers sans perdre l'historique.
-
-### Q: Puis-je entraîner sans MLflow?
-
-**R**: Oui, mais non recommandé. Si MLflow est indisponible:
-1. Les modèles sont quand même sauvegardés dans `models/`
-2. Utilisez `load_model_local()` pour charger
-3. Mais vous perdez le tracking, les artifacts, et la traçabilité
-
-### Q: Comment sauvegarder mes modèles?
-
-**R**:
-```bash
-# Backup complet (DB + artifacts + models locaux)
-tar -czf f1pa_models_backup_$(date +%Y%m%d).tar.gz mlflow_db/ mlartifacts/ models/
-
-# Restaurer
-tar -xzf f1pa_models_backup_YYYYMMDD.tar.gz
-```
-
----
-
-## Résumé Exécutif
-
-**F1PA ML Pipeline** est un système complet de prédiction des temps au tour en Formule 1:
-
-✅ **Dataset**: 71,645 tours (2023-2025), split temporel
-✅ **Features**: 17 features (après engineering et selection)
-✅ **Modèle**: XGBoost V2.1 régularisé (MAE 1.31s, R² 0.686, Overfitting 3.44)
-✅ **Tracking**: MLflow avec persistance (http://localhost:5000)
-✅ **Chargement**: Dynamique sans run IDs prédéfinis
-✅ **Documentation**: Complète avec guides d'utilisation
+- **Dataset**: 71,645 tours (2023-2025), split stratifié 80/20
+- **Features**: 15 features (performance encodings, vitesses, météo)
+- **Meilleur Modèle**: Random Forest GridSearch
+- **Performance**: MAE 1.070s, R² 0.755
+- **Tracking**: MLflow (http://localhost:5000)
+- **API**: Auto-sélection du meilleur modèle

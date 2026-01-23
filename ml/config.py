@@ -2,6 +2,13 @@
 F1PA - ML Configuration
 
 Centralise tous les paramètres du pipeline ML pour faciliter les expérimentations.
+
+OBJECTIF DU MODÈLE:
+Prédire le temps au tour d'un pilote sur un circuit AVANT qu'il roule,
+basé sur sa performance historique et les conditions.
+
+Ce n'est PAS un prédicteur de temps final basé sur les temps secteurs
+(ce qui serait trivial car lap_duration ≈ sum(sector_times)).
 """
 from pathlib import Path
 
@@ -16,71 +23,81 @@ REPORTS_DIR = PROJECT_ROOT / "reports"
 DATASET_PATH = PROCESSED_DATA / "dataset_ml_lap_level_2023_2024_2025.csv"
 
 # Train/Test split
-TRAIN_YEARS = [2023, 2024]  # 47,266 laps (66%)
-TEST_YEAR = 2025             # 24,379 laps (34%)
+# V2: Split 80/20 stratifié par circuit (au lieu de temporel strict)
+# Permet d'inclure des données 2025 dans le train pour réduire le concept drift
+SPLIT_STRATEGY = "stratified"  # "temporal" ou "stratified"
+TEST_SIZE = 0.2  # 20% pour le test
+STRATIFY_BY = "circuit_key"  # Assurer distribution circuits équilibrée
+
+# Legacy (pour compatibilité si SPLIT_STRATEGY = "temporal")
+TRAIN_YEARS = [2023, 2024]
+TEST_YEAR = 2025
 
 # Features
-# Features à exclure (identifiants, metadata, target)
+# Features à exclure (identifiants, metadata, target, et données du tour en cours)
 EXCLUDE_FEATURES = [
-    # Identifiants
-    'meeting_key', 'session_key', 'driver_number', 'circuit_key',
+    # Identifiants (gardés pour groupby mais pas comme features directes)
+    'meeting_key', 'session_key',
     # Metadata non prédictives
     'session_name', 'session_type', 'location', 'country_name',
     'date_start_session', 'date_end_session', 'wikipedia_circuit_url',
     'station_id', 'gmt_offset', '__source_file',
-    # Temporelles (utiles pour imputation mais pas en features)
+    # Temporelles
     'lap_hour_utc',
     # Target
     'lap_duration',
-    # Features faibles (importance < 0.001) - Solution anti-overfitting
-    'year_avg_laptime',    # importance: 2.6e-07 (quasi nulle)
-    'prcp',                # importance: 1.8e-05
-    'wspd',                # importance: 5.2e-05
-    'cldc',                # importance: 7.0e-05
-    'weather_severity',    # importance: 0.00016
-    'driver_avg_laptime',  # importance: 0.00029
-    'wdir'                 # importance: 0.00048
+    # ⚠️ EXCLUS: Temps secteurs (ce sont des données du tour en cours, pas prédictives!)
+    # Le modèle doit prédire AVANT le tour, pas pendant
+    'duration_sector_1', 'duration_sector_2', 'duration_sector_3',
+    # Features dérivées des secteurs (également exclues)
+    'total_sector_time', 'sector_1_ratio', 'sector_2_ratio',
+    # Features météo faibles
+    'prcp', 'wspd', 'cldc', 'wdir',
+    'weather_severity',
+    # year_avg_laptime (trop faible)
+    'year_avg_laptime',
 ]
 
-# Features numériques sport
-SPORT_FEATURES = ['st_speed', 'i1_speed', 'i2_speed',
-                  'duration_sector_1', 'duration_sector_2', 'duration_sector_3']
+# Features numériques sport (vitesses uniquement - pas les temps secteurs!)
+# Les vitesses sont des indicateurs de performance sans donner le temps directement
+SPORT_FEATURES = ['st_speed', 'i1_speed', 'i2_speed']
 
-# Features numériques météo
-WEATHER_FEATURES = ['temp', 'rhum', 'pres', 'wspd', 'wdir', 'prcp', 'cldc']
+# Features numériques météo (principales)
+WEATHER_FEATURES = ['temp', 'rhum', 'pres']
 
-# Features catégorielles
+# Features catégorielles (seront encodées)
 CATEGORICAL_FEATURES = ['circuit_key', 'driver_number', 'year']
 
 # Features dérivées (créées dans preprocessing)
 DERIVED_FEATURES = [
-    'avg_speed',           # Vitesse moyenne
-    'total_sector_time',   # Somme des secteurs
-    'sector_1_ratio',      # % temps secteur 1
-    'sector_2_ratio',      # % temps secteur 2
-    'weather_severity',    # Composite vent + pluie
-    'lap_progress'         # Progression dans la course
+    'avg_speed',              # Vitesse moyenne (performance globale)
+    'lap_progress',           # Progression dans la session
+    'driver_perf_score',      # Score de performance historique du pilote
+    'circuit_avg_laptime',    # Temps moyen du circuit (difficulté)
+    'driver_avg_laptime',     # Temps moyen du pilote (skill)
 ]
 
 # Target
 TARGET = 'lap_duration'
 
-# GridSearch: Grilles de paramètres pour tuning léger avec régularisation équilibrée (Version 2.1)
+# GridSearch: Grilles de paramètres (Version 3.1 - optimisée pour vitesse)
+# XGBoost: grille large car rapide à entraîner
+# Random Forest: grille réduite car lent (focus sur les meilleurs paramètres)
 GRIDSEARCH_PARAMS = {
     'xgboost': {
-        'n_estimators': [50, 100, 150],     # Version 2.1: ajout 150 (vs [50, 100] V2.0)
-        'max_depth': [4, 5],                # Version 2.1: 4-5 (vs [3, 5] V2.0)
-        'learning_rate': [0.03, 0.05],      # Version 2.1: 0.03-0.05 (vs [0.01, 0.05] V2.0)
-        'min_child_weight': [3, 5],         # OK: Régularisation
-        'gamma': [0.05, 0.15],              # Version 2.1: réduit (vs [0.1, 0.3] V2.0)
-    },
+        'n_estimators': [100, 200, 300],    # 3 valeurs
+        'max_depth': [7, 10],               # 2 valeurs (best=10)
+        'learning_rate': [0.05, 0.1],       # 2 valeurs (best=0.05)
+        'min_child_weight': [1, 3],         # 2 valeurs (best=1)
+        'gamma': [0, 0.1],                  # 2 valeurs (best=0.1)
+    },  # Total: 3×2×2×2×2 = 48 combinaisons
     'random_forest': {
-        'n_estimators': [50, 100],          # Réduit (était [100, 300])
-        'max_depth': [5, 8],                # Réduit (était [10, 15])
-        'min_samples_split': [10, 20],      # Augmenté (était [2, 5])
-        'min_samples_leaf': [5, 10],        # Augmenté (était implicite 2)
-        'max_features': [0.5, 0.7],         # NOUVEAU: Réduire features par split
-    }
+        'n_estimators': [200, 300],         # 2 valeurs (baseline=300)
+        'max_depth': [15, None],            # 2 valeurs (baseline=15)
+        'min_samples_split': [2, 5],        # 2 valeurs (baseline=5)
+        'min_samples_leaf': [1, 2],         # 2 valeurs (baseline=2)
+        'max_features': ['sqrt', 0.7],      # 2 valeurs
+    }  # Total: 2×2×2×2×2 = 32 combinaisons
 }
 
 # Paramètres fixes (communs à toutes les combinaisons GridSearch)
