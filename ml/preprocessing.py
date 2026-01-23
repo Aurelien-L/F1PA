@@ -3,9 +3,15 @@ F1PA - Preprocessing Pipeline
 
 Gère:
 1. Imputation des valeurs manquantes (stratégie intelligente par type de feature)
-2. Feature engineering (création de 6 features dérivées)
+2. Feature engineering (création de features dérivées PRÉDICTIVES)
 3. Encodage des variables catégorielles (Target Encoding)
 4. Préparation train/test split temporel
+
+IMPORTANT: Ce pipeline prépare les données pour un modèle de PRÉDICTION
+de performance, PAS un modèle de calcul de temps final.
+
+Les temps secteurs (duration_sector_*) sont EXCLUS car ils représentent
+des données du tour en cours, pas des prédicteurs avant le tour.
 
 Justifications techniques détaillées dans ml/README.md
 """
@@ -103,73 +109,84 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def create_derived_features(df: pd.DataFrame) -> pd.DataFrame:
+def create_derived_features(df: pd.DataFrame, train_mask: pd.Series) -> pd.DataFrame:
     """
-    Création de 6 features dérivées.
+    Création de features dérivées PRÉDICTIVES.
+
+    IMPORTANT: Ces features doivent être calculables AVANT le tour,
+    donc PAS basées sur les temps secteurs du tour en cours.
 
     FEATURES CRÉÉES:
 
-    1. avg_speed: Vitesse moyenne (st_speed + i1_speed + i2_speed) / 3
-       → Mesure globale de performance vitesse
+    1. avg_speed: Vitesse moyenne historique (st_speed + i1_speed + i2_speed) / 3
+       → Indicateur de performance globale
 
-    2. total_sector_time: duration_sector_1 + duration_sector_2 + duration_sector_3
-       → Approximation de lap_duration (très corrélé)
-       → Utile pour les arbres de décision (split direct)
+    2. lap_progress: lap_number / max_lap_number (par session)
+       → Progression dans la session (0-1)
+       → Capture dégradation pneus + évolution conditions
 
-    3. sector_1_ratio: duration_sector_1 / total_sector_time
-    4. sector_2_ratio: duration_sector_2 / total_sector_time
-       → Capture le STYLE de pilotage:
-         - Ratio S1 élevé → Pilote agressif en début de tour
-         - Ratio S3 élevé → Pilote conservateur (économie pneus)
-       → Permet de différencier les pilotes au-delà de leur vitesse brute
+    3. driver_perf_score: Score de performance du pilote
+       → Basé sur la différence entre le temps du pilote et le temps moyen circuit
+       → Calculé sur le TRAIN SET uniquement (pas de data leakage)
+       → Score négatif = pilote plus rapide que la moyenne
 
-    5. weather_severity: (wspd / 41) + (prcp / 1.8)
-       → Score composite météo difficile (0-2)
-       → Combine vent fort + pluie
-       → Normalisé par max observé (wspd_max=41, prcp_max=1.8)
+    Args:
+        df: DataFrame avec les données brutes
+        train_mask: Masque booléen pour le train set (éviter data leakage)
 
-    6. lap_progress: lap_number / max_lap_number (par session)
-       → Progression dans la course (0-1)
-       → Capture dégradation pneus + fatigue pilote
-       → Temps augmente typiquement en fin de course
-
-    JUSTIFICATION:
-    - Ces features sont difficiles à capturer par le modèle brut
-    - Elles encodent de la CONNAISSANCE MÉTIER (F1)
-    - Impact attendu: +5-10% R² par rapport à features brutes seules
+    EXCLUS (car données du tour en cours):
+    - total_sector_time (= lap_duration quasi directement)
+    - sector_1_ratio, sector_2_ratio (basés sur secteurs du tour)
+    - weather_severity (impact faible selon feature importance)
     """
     df = df.copy()
-    log("Creating 6 derived features...")
+    log("Creating derived features (predictive only)...")
 
-    # 1. Vitesse moyenne
+    # 1. Vitesse moyenne (indicateur de performance, pas de temps direct)
     df['avg_speed'] = (df['st_speed'] + df['i1_speed'] + df['i2_speed']) / 3
+    log("  avg_speed: Average of 3 speed measurements")
 
-    # 2. Temps secteurs total
-    df['total_sector_time'] = (
-        df['duration_sector_1'] +
-        df['duration_sector_2'] +
-        df['duration_sector_3']
-    )
-
-    # 3-4. Ratios secteurs (style pilotage)
-    df['sector_1_ratio'] = df['duration_sector_1'] / df['total_sector_time']
-    df['sector_2_ratio'] = df['duration_sector_2'] / df['total_sector_time']
-    # Note: sector_3_ratio = 1 - sector_1_ratio - sector_2_ratio (redondant)
-
-    # 5. Météo composite (0-2 scale)
-    # Normalisation par max observé
-    df['weather_severity'] = (df['wspd'] / 41.0) + (df['prcp'] / 1.8)
-
-    # 6. Progression course (0-1 scale)
+    # 2. Progression session (0-1 scale)
     df['lap_progress'] = df.groupby('session_key')['lap_number'].transform(
         lambda x: x / x.max()
     )
+    log("  lap_progress: Position in session (tire degradation)")
 
-    log("  avg_speed: Average of 3 speed measurements")
-    log("  total_sector_time: Sum of 3 sector durations")
-    log("  sector_1_ratio, sector_2_ratio: Driving style indicators")
-    log("  weather_severity: Composite wind + rain difficulty")
-    log("  lap_progress: Position in race (tire degradation)")
+    # 3. Driver Performance Score
+    # Calculé comme: temps moyen du pilote - temps moyen du circuit
+    # Un score négatif = pilote plus rapide que la moyenne
+    # ⚠️ Calculé UNIQUEMENT sur train set pour éviter data leakage
+
+    # D'abord calculer les moyennes par circuit (sur train)
+    circuit_means = df.loc[train_mask].groupby('circuit_key')['lap_duration'].mean()
+
+    # Ensuite calculer les moyennes par pilote par circuit (sur train)
+    driver_circuit_means = df.loc[train_mask].groupby(
+        ['driver_number', 'circuit_key']
+    )['lap_duration'].mean()
+
+    # Créer le score de performance
+    def calc_driver_perf(row):
+        driver = row['driver_number']
+        circuit = row['circuit_key']
+        circuit_avg = circuit_means.get(circuit, df.loc[train_mask, 'lap_duration'].mean())
+
+        if (driver, circuit) in driver_circuit_means.index:
+            driver_avg = driver_circuit_means[(driver, circuit)]
+        else:
+            # Pilote inconnu sur ce circuit: utiliser sa moyenne globale
+            driver_global = df.loc[
+                train_mask & (df['driver_number'] == driver), 'lap_duration'
+            ].mean()
+            if pd.isna(driver_global):
+                driver_avg = circuit_avg  # Fallback: neutre
+            else:
+                driver_avg = driver_global
+
+        return driver_avg - circuit_avg
+
+    df['driver_perf_score'] = df.apply(calc_driver_perf, axis=1)
+    log("  driver_perf_score: Driver performance vs circuit average (negative = faster)")
 
     return df
 
@@ -251,55 +268,25 @@ def target_encode_categorical(
     return df
 
 
-def prepare_train_test_split(
+def prepare_train_test_split_temporal(
     df: pd.DataFrame,
     train_years: list[int],
     test_year: int,
     target_col: str = 'lap_duration'
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
     """
-    Split temporel Train/Test.
+    Split temporel Train/Test (legacy).
 
-    JUSTIFICATION vs split aléatoire:
-
-    ❌ Split aléatoire (shuffle=True):
-    - Mélange 2023, 2024, 2025
-    - Le modèle "voit le futur" pendant l'entraînement
-    - DATA LEAKAGE: Lap de 2025 dans train → Test sur 2025 biaisé
-    - Métriques optimistes mais modèle inutilisable en production
-
-    ✅ Split temporel (année):
-    - Train: 2023-2024 (passé)
-    - Test: 2025 (futur)
-    - Simule la PRODUCTION: Prédire les courses de 2026 avec data 2023-2025
-    - Métriques réalistes
-    - Détecte le concept drift (changements réglementaires F1)
-
-    DISTRIBUTION:
-    - Train: 47,266 laps (66%) → 2023 + 2024
-    - Test: 24,379 laps (34%) → 2025
-    - Ratio 66/34 acceptable (généralement 70/30 ou 80/20)
-
-    Args:
-        df: DataFrame preprocessé
-        train_years: [2023, 2024]
-        test_year: 2025
-        target_col: 'lap_duration'
-
-    Returns:
-        X_train, X_test, y_train, y_test
+    Train: 2023-2024 | Test: 2025
     """
-    log(f"Splitting train ({train_years}) / test ({test_year})...")
+    log(f"Splitting TEMPORAL: train ({train_years}) / test ({test_year})...")
 
-    # Masque train/test
     train_mask = df['year'].isin(train_years)
     test_mask = df['year'] == test_year
 
-    # Colonnes features (exclure target + metadata)
     from ml.config import EXCLUDE_FEATURES
     feature_cols = [c for c in df.columns if c not in EXCLUDE_FEATURES]
 
-    # Split
     X_train = df.loc[train_mask, feature_cols]
     X_test = df.loc[test_mask, feature_cols]
     y_train = df.loc[train_mask, target_col]
@@ -312,22 +299,96 @@ def prepare_train_test_split(
     return X_train, X_test, y_train, y_test
 
 
-def preprocess_pipeline(dataset_path: Path, train_years: list[int], test_year: int):
+def prepare_train_test_split_stratified(
+    df: pd.DataFrame,
+    test_size: float = 0.2,
+    stratify_by: str = 'circuit_key',
+    target_col: str = 'lap_duration',
+    random_state: int = 42
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
     """
-    Pipeline preprocessing complet.
+    Split stratifié 80/20 incluant toutes les années.
+
+    AVANTAGES:
+    - Inclut des données 2025 dans le train → réduit le concept drift
+    - Distribution équilibrée des circuits dans train et test
+    - Meilleure généralisation
+
+    INCONVÉNIENT:
+    - Légère fuite temporelle (acceptable pour ce cas d'usage)
+
+    Args:
+        df: DataFrame preprocessé
+        test_size: Proportion du test set (0.2 = 20%)
+        stratify_by: Colonne pour stratification ('circuit_key')
+        target_col: 'lap_duration'
+        random_state: Seed pour reproductibilité
+
+    Returns:
+        X_train, X_test, y_train, y_test
+    """
+    from sklearn.model_selection import train_test_split
+    from ml.config import EXCLUDE_FEATURES
+
+    log(f"Splitting STRATIFIED: {(1-test_size)*100:.0f}% train / {test_size*100:.0f}% test")
+    log(f"Stratified by: {stratify_by}")
+
+    feature_cols = [c for c in df.columns if c not in EXCLUDE_FEATURES]
+
+    X = df[feature_cols]
+    y = df[target_col]
+
+    # Stratification par circuit pour assurer une bonne distribution
+    stratify_col = df[stratify_by]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=test_size,
+        stratify=stratify_col,
+        random_state=random_state
+    )
+
+    log(f"Train: {len(X_train):,} samples ({len(X_train)/len(df)*100:.1f}%)")
+    log(f"Test:  {len(X_test):,} samples ({len(X_test)/len(df)*100:.1f}%)")
+    log(f"Features: {len(feature_cols)}")
+
+    # Vérifier la distribution des années
+    train_years = df.loc[X_train.index, 'year'].value_counts().sort_index()
+    test_years = df.loc[X_test.index, 'year'].value_counts().sort_index()
+    log(f"Train years distribution: {train_years.to_dict()}")
+    log(f"Test years distribution: {test_years.to_dict()}")
+
+    return X_train, X_test, y_train, y_test
+
+
+def preprocess_pipeline(dataset_path: Path, train_years: list[int] = None, test_year: int = None):
+    """
+    Pipeline preprocessing complet pour modèle de PRÉDICTION de performance.
 
     Étapes:
     1. Chargement dataset
     2. Imputation valeurs manquantes
-    3. Création features dérivées
-    4. Target encoding catégorielles
-    5. Split train/test temporel
+    3. Target encoding catégorielles (circuit_avg_laptime, driver_avg_laptime)
+    4. Création features dérivées (driver_perf_score, etc.)
+    5. Split train/test (stratifié ou temporel selon config)
+
+    IMPORTANT: Les temps secteurs sont EXCLUS car ce sont des données
+    du tour en cours, pas des prédicteurs.
 
     Returns:
         X_train, X_test, y_train, y_test, df_preprocessed
     """
+    from ml.config import SPLIT_STRATEGY, TEST_SIZE, STRATIFY_BY, TRAIN_YEARS, TEST_YEAR, RANDOM_STATE
+
+    # Valeurs par défaut depuis config
+    if train_years is None:
+        train_years = TRAIN_YEARS
+    if test_year is None:
+        test_year = TEST_YEAR
+
     log("=" * 80)
-    log("PREPROCESSING PIPELINE")
+    log("PREPROCESSING PIPELINE (Performance Prediction Model)")
+    log(f"Split strategy: {SPLIT_STRATEGY}")
     log("=" * 80)
 
     # 1. Load
@@ -336,21 +397,42 @@ def preprocess_pipeline(dataset_path: Path, train_years: list[int], test_year: i
     # 2. Handle missing values
     df = handle_missing_values(df)
 
-    # 3. Create derived features
-    df = create_derived_features(df)
+    # 3. Définir le masque train pour les encodages
+    # Pour le split stratifié, on utilise 80% des données pour l'encodage
+    if SPLIT_STRATEGY == "stratified":
+        # Pour l'encodage, on utilise un sample aléatoire de 80%
+        from sklearn.model_selection import train_test_split
+        train_idx, _ = train_test_split(
+            df.index, test_size=TEST_SIZE,
+            stratify=df[STRATIFY_BY],
+            random_state=RANDOM_STATE
+        )
+        train_mask = df.index.isin(train_idx)
+    else:
+        train_mask = df['year'].isin(train_years)
 
-    # 4. Target encoding (nécessite de connaître train/test split)
-    train_mask = df['year'].isin(train_years)
+    # 4. Target encoding (calcule circuit_avg_laptime, driver_avg_laptime)
     df = target_encode_categorical(
         df, train_mask,
         categorical_cols=['circuit_key', 'driver_number', 'year'],
         target_col='lap_duration'
     )
 
-    # 5. Split train/test
-    X_train, X_test, y_train, y_test = prepare_train_test_split(
-        df, train_years, test_year
-    )
+    # 5. Create derived features (utilise train_mask pour éviter leakage)
+    df = create_derived_features(df, train_mask)
+
+    # 6. Split train/test selon la stratégie
+    if SPLIT_STRATEGY == "stratified":
+        X_train, X_test, y_train, y_test = prepare_train_test_split_stratified(
+            df, test_size=TEST_SIZE, stratify_by=STRATIFY_BY, random_state=RANDOM_STATE
+        )
+    else:
+        X_train, X_test, y_train, y_test = prepare_train_test_split_temporal(
+            df, train_years, test_year
+        )
+
+    # Log features finales
+    log(f"Final features ({len(X_train.columns)}): {list(X_train.columns)}")
 
     log("=" * 80)
     log("PREPROCESSING COMPLETE")

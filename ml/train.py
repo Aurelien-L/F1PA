@@ -16,6 +16,11 @@ MLflow logs pour chaque run:
 """
 from __future__ import annotations
 
+# IMPORTANT: Set matplotlib backend BEFORE importing pyplot
+# This prevents tkinter errors when running with parallel jobs (n_jobs=-1) on Windows
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend, no GUI required
+
 import time
 import json
 import pickle
@@ -205,13 +210,17 @@ def train_model_with_gridsearch(
 
         # Set description
         description = f"""
-F1 Lap Time Prediction - {model_name.upper()} {'with GridSearchCV' if use_gridsearch else 'Baseline'}
+F1 Lap Time PERFORMANCE Prediction - {model_name.upper()} {'with GridSearchCV' if use_gridsearch else 'Baseline'}
+
+OBJECTIF: Prédire le temps au tour d'un pilote AVANT qu'il roule
+(basé sur performance historique + conditions, PAS sur les temps secteurs)
 
 Dataset: 71,645 laps (2023-2025)
 Train: 47,266 laps (2023-2024) | Test: 24,379 laps (2025)
-Features: 24 (sport + weather + derived + target-encoded)
+Features: vitesses + météo + driver_perf_score + circuit_avg_laptime
 
-Objective: Predict lap_duration with MAE < 2.0s
+Note: Les temps secteurs (duration_sector_*) sont EXCLUS car ils représentent
+des données du tour en cours, pas des prédicteurs.
         """.strip()
         mlflow.set_tag("mlflow.note.content", description)
 

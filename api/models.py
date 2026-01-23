@@ -12,17 +12,26 @@ from pydantic import BaseModel, Field
 # =============================================================================
 
 class LapFeatures(BaseModel):
-    """Input features for lap time prediction."""
+    """
+    Input features for lap time PERFORMANCE prediction.
 
-    # Speed measurements (km/h)
-    st_speed: float = Field(..., description="Speed trap measurement (km/h)", ge=0, le=400)
-    i1_speed: float = Field(..., description="Intermediate 1 speed (km/h)", ge=0, le=400)
-    i2_speed: float = Field(..., description="Intermediate 2 speed (km/h)", ge=0, le=400)
+    OBJECTIF: Prédire le temps au tour d'un pilote AVANT qu'il roule,
+    basé sur sa performance historique et les conditions.
 
-    # Sector times (seconds)
-    duration_sector_1: float = Field(..., description="Sector 1 duration (seconds)", ge=0)
-    duration_sector_2: float = Field(..., description="Sector 2 duration (seconds)", ge=0)
-    duration_sector_3: float = Field(..., description="Sector 3 duration (seconds)", ge=0)
+    NOTE: Les temps secteurs ne sont PAS utilisés car ils représentent
+    des données du tour en cours (ce serait trivial: lap_time ≈ sum(sectors)).
+    """
+
+    # Driver identification
+    driver_number: int = Field(..., description="Driver number (e.g., 1 for Verstappen)", ge=1, le=99)
+
+    # Circuit identification
+    circuit_key: int = Field(..., description="Circuit key from the database", ge=1)
+
+    # Speed measurements (km/h) - historical/expected performance
+    st_speed: float = Field(..., description="Expected speed trap (km/h)", ge=0, le=400)
+    i1_speed: float = Field(..., description="Expected intermediate 1 speed (km/h)", ge=0, le=400)
+    i2_speed: float = Field(..., description="Expected intermediate 2 speed (km/h)", ge=0, le=400)
 
     # Weather conditions
     temp: float = Field(..., description="Temperature (Celsius)", ge=-20, le=60)
@@ -30,27 +39,30 @@ class LapFeatures(BaseModel):
     pres: float = Field(..., description="Atmospheric pressure (hPa)", ge=900, le=1100)
 
     # Context
-    lap_number: int = Field(..., description="Lap number in the session", ge=1)
+    lap_number: int = Field(..., description="Expected lap number in the session", ge=1)
     year: int = Field(..., description="Year of the race", ge=2023, le=2030)
 
-    # Circuit encoding (average lap time for this circuit)
+    # Performance encodings (can be fetched from /data endpoints)
     circuit_avg_laptime: float = Field(..., description="Average lap time for this circuit (seconds)", ge=60, le=150)
+    driver_avg_laptime: float = Field(..., description="Driver's average lap time (seconds)", ge=60, le=150)
+    driver_perf_score: float = Field(0.0, description="Driver performance score (negative = faster than average)")
 
     class Config:
         json_schema_extra = {
             "example": {
+                "driver_number": 1,
+                "circuit_key": 7,
                 "st_speed": 310.5,
                 "i1_speed": 295.2,
                 "i2_speed": 288.1,
-                "duration_sector_1": 28.5,
-                "duration_sector_2": 35.2,
-                "duration_sector_3": 26.8,
                 "temp": 25.0,
                 "rhum": 45.0,
                 "pres": 1013.0,
                 "lap_number": 15,
                 "year": 2025,
-                "circuit_avg_laptime": 92.5
+                "circuit_avg_laptime": 92.5,
+                "driver_avg_laptime": 91.2,
+                "driver_perf_score": -1.3
             }
         }
 
@@ -81,14 +93,17 @@ class BatchPredictionResponse(BaseModel):
 
 class ModelInfoResponse(BaseModel):
     """Response with model information."""
-    model_family: str
-    strategy: str
-    run_id: Optional[str] = None
-    test_mae: Optional[float] = None
-    test_r2: Optional[float] = None
-    test_rmse: Optional[float] = None
-    overfitting_ratio: Optional[float] = None
-    source: str = "mlflow"
+    model_family: str = Field(..., description="Model type (xgboost, random_forest)")
+    strategy: str = Field(..., description="Selection strategy (mae, robust)")
+    run_name: Optional[str] = Field(None, description="MLflow run name")
+    run_id: Optional[str] = Field(None, description="MLflow run ID")
+    test_mae: Optional[float] = Field(None, description="Test Mean Absolute Error (seconds)")
+    test_r2: Optional[float] = Field(None, description="Test R² score")
+    test_rmse: Optional[float] = Field(None, description="Test Root Mean Square Error")
+    cv_mae: Optional[float] = Field(None, description="Cross-validation MAE")
+    cv_r2: Optional[float] = Field(None, description="Cross-validation R²")
+    overfitting_ratio: Optional[float] = Field(None, description="Overfitting ratio (test/train)")
+    source: str = Field("mlflow", description="Model source (mlflow, local)")
 
 
 # =============================================================================

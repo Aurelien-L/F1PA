@@ -46,8 +46,8 @@ services:
       - POSTGRES_PASSWORD=f1pa
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - MLFLOW_EXPERIMENT_NAME=F1PA_LapTime_Prediction
-      - DEFAULT_MODEL_FAMILY=xgboost
-      - DEFAULT_MODEL_STRATEGY=robust
+      - DEFAULT_MODEL_FAMILY=auto
+      - DEFAULT_MODEL_STRATEGY=mae
     depends_on:
       - postgres
       - mlflow

@@ -25,13 +25,19 @@ class APIConfig:
     mlflow_tracking_uri: str = "http://localhost:5000"
     mlflow_experiment_name: str = "F1PA_LapTime_Prediction"
 
-    # Model
-    default_model_family: str = "xgboost"
-    default_model_strategy: str = "robust"
+    # Model selection: automatic selection of best model across all families
+    # Set to None to auto-select best model (recommended)
+    # Or specify "xgboost" / "random_forest" to restrict to one family
+    default_model_family: str = None  # None = auto-select best across all
+    default_model_strategy: str = "mae"  # "mae" = best absolute performance
 
     @classmethod
     def from_env(cls) -> "APIConfig":
         """Load configuration from environment variables."""
+        # Handle model_family: "auto" or empty string means None (auto-select)
+        model_family_env = os.getenv("DEFAULT_MODEL_FAMILY", "auto")
+        model_family = None if model_family_env in ("auto", "", "none") else model_family_env
+
         return cls(
             host=os.getenv("API_HOST", "0.0.0.0"),
             port=int(os.getenv("API_PORT", "8000")),
@@ -43,8 +49,8 @@ class APIConfig:
             db_password=os.getenv("POSTGRES_PASSWORD", "f1pa"),
             mlflow_tracking_uri=os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"),
             mlflow_experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME", "F1PA_LapTime_Prediction"),
-            default_model_family=os.getenv("DEFAULT_MODEL_FAMILY", "xgboost"),
-            default_model_strategy=os.getenv("DEFAULT_MODEL_STRATEGY", "robust"),
+            default_model_family=model_family,
+            default_model_strategy=os.getenv("DEFAULT_MODEL_STRATEGY", "mae"),
         )
 
     @property
