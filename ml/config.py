@@ -10,6 +10,7 @@ basé sur sa performance historique et les conditions.
 Ce n'est PAS un prédicteur de temps final basé sur les temps secteurs
 (ce qui serait trivial car lap_duration ≈ sum(sector_times)).
 """
+import os
 from pathlib import Path
 
 # Paths
@@ -147,9 +148,9 @@ GRIDSEARCH_SCORING = 'neg_mean_absolute_error'  # Métrique à optimiser
 CV_FOLDS = 5
 CV_STRATIFY_BY = 'circuit_key'  # Assurer distribution circuits équilibrée
 
-# MLflow
-MLFLOW_EXPERIMENT_NAME = "F1PA_LapTime_Prediction"
-MLFLOW_TRACKING_URI = "http://localhost:5000"
+# MLflow (from environment or defaults)
+MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "F1PA_LapTime_Prediction")
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 
 # Métriques d'évaluation
 METRICS = ['mae', 'rmse', 'r2', 'mape']

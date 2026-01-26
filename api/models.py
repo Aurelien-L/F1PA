@@ -125,7 +125,9 @@ class DriverResponse(BaseModel):
     full_name: str
     name_acronym: str
     team_name: Optional[str] = None
+    team_colour: Optional[str] = None
     country_code: Optional[str] = None
+    headshot_url: Optional[str] = None
 
 
 class SessionResponse(BaseModel):

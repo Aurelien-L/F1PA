@@ -168,12 +168,12 @@ class DBService:
     def get_drivers(self) -> List[Dict[str, Any]]:
         """Get all drivers."""
         query = """
-            SELECT driver_number, full_name, name_acronym, team_name, country_code
+            SELECT driver_number, full_name, name_acronym, team_name, team_colour, country_code, headshot_url
             FROM dim_drivers
             ORDER BY full_name
         """
         if self._use_docker:
-            return self._docker_query(query, ['driver_number', 'full_name', 'name_acronym', 'team_name', 'country_code'])
+            return self._docker_query(query, ['driver_number', 'full_name', 'name_acronym', 'team_name', 'team_colour', 'country_code', 'headshot_url'])
 
         with self.get_connection() as conn:
             result = conn.execute(text(query))
@@ -182,12 +182,12 @@ class DBService:
     def get_driver(self, driver_number: int) -> Optional[Dict[str, Any]]:
         """Get a specific driver by number."""
         query = f"""
-            SELECT driver_number, full_name, name_acronym, team_name, country_code
+            SELECT driver_number, full_name, name_acronym, team_name, team_colour, country_code, headshot_url
             FROM dim_drivers
             WHERE driver_number = {driver_number}
         """
         if self._use_docker:
-            rows = self._docker_query(query, ['driver_number', 'full_name', 'name_acronym', 'team_name', 'country_code'])
+            rows = self._docker_query(query, ['driver_number', 'full_name', 'name_acronym', 'team_name', 'team_colour', 'country_code', 'headshot_url'])
             return rows[0] if rows else None
 
         with self.get_connection() as conn:

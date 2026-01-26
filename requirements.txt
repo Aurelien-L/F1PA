@@ -6,6 +6,7 @@ beautifulsoup4
 lxml
 matplotlib
 seaborn
+streamlit
 
 # Database
 psycopg2-binary
