@@ -1,0 +1,35 @@
+# Data files (large)
+data/
+models/
+mlartifacts/
+mlflow_db/
+mlruns/
+reports/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+
+# Notebooks
+notebooks/
+*.ipynb
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Docker volumes
+postgres_data/
+
+# Temp files
+*.log
+*.tmp
+*.bak
