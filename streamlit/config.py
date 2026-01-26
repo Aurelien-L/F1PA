@@ -8,6 +8,11 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 API_USERNAME = os.getenv("API_USERNAME", "f1pa")
 API_PASSWORD = os.getenv("API_PASSWORD", "f1pa")
 
+# External URLs (for browser links - always localhost)
+# API_BASE_URL is for internal requests (can be http://api:8000 in Docker)
+# API_EXTERNAL_URL is for clickable links in the browser (always localhost)
+API_EXTERNAL_URL = os.getenv("API_EXTERNAL_URL", "http://localhost:8000")
+
 # External Links
 MLFLOW_URL = os.getenv("MLFLOW_URL", "http://localhost:5000")
 GITHUB_URL = "https://github.com/Aurelien-L/F1PA"

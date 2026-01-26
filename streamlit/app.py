@@ -10,7 +10,7 @@ from requests.auth import HTTPBasicAuth
 import pandas as pd
 
 from config import (
-    API_BASE_URL, API_USERNAME, API_PASSWORD,
+    API_BASE_URL, API_EXTERNAL_URL, API_USERNAME, API_PASSWORD,
     MLFLOW_URL, GITHUB_URL, EVIDENTLY_URL,
     DEFAULT_TEMP, DEFAULT_RHUM, DEFAULT_PRES,
     DEFAULT_LAP_NUMBER, DEFAULT_YEAR,
@@ -664,11 +664,11 @@ def render_links_tab():
 
     with col1:
         st.markdown(f"""
-        <a href="{API_BASE_URL}/docs" target="_blank" style="text-decoration: none;">
+        <a href="{API_EXTERNAL_URL}/docs" target="_blank" style="text-decoration: none;">
             <div class="link-card">
                 <h3 style="color: #E10600; margin: 0;">📡 FastAPI</h3>
                 <p style="color: #AAAAAA;">REST API Documentation (Swagger)</p>
-                <p style="color: #666666; font-size: 0.8rem;">{API_BASE_URL}/docs</p>
+                <p style="color: #666666; font-size: 0.8rem;">{API_EXTERNAL_URL}/docs</p>
             </div>
         </a>
         """, unsafe_allow_html=True)
