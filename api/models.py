@@ -4,7 +4,7 @@ F1PA API - Pydantic Models
 Request/Response models for the API endpoints.
 """
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # =============================================================================
@@ -47,8 +47,9 @@ class LapFeatures(BaseModel):
     driver_avg_laptime: float = Field(..., description="Driver's average lap time (seconds)", ge=60, le=150)
     driver_perf_score: float = Field(0.0, description="Driver performance score (negative = faster than average)")
 
-    class Config:
-        json_schema_extra = {
+    # Pydantic V2 configuration
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "driver_number": 1,
                 "circuit_key": 7,
@@ -65,6 +66,7 @@ class LapFeatures(BaseModel):
                 "driver_perf_score": -1.3
             }
         }
+    )
 
 
 class PredictionRequest(BaseModel):
