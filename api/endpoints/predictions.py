@@ -15,6 +15,7 @@ from api.models import (
 )
 from api.services.ml_service import ml_service
 from api.auth import get_current_user
+from api.middleware.metrics import track_prediction, track_prediction_error
 
 router = APIRouter(prefix="/predict", tags=["Predictions"])
 
@@ -92,8 +93,9 @@ async def predict_lap_time(request: PredictionRequest, username: str = Depends(g
         # Convert Pydantic model to dict
         features_dict = request.features.model_dump()
 
-        # Make prediction
-        prediction = ml_service.predict(features_dict)
+        # Make prediction with metrics tracking
+        with track_prediction("single"):
+            prediction = ml_service.predict(features_dict)
 
         return PredictionResponse(
             lap_duration_seconds=round(prediction, 3),
@@ -102,6 +104,7 @@ async def predict_lap_time(request: PredictionRequest, username: str = Depends(g
         )
 
     except Exception as e:
+        track_prediction_error("single")
         raise HTTPException(
             status_code=500,
             detail=f"Prediction failed: {str(e)}"
@@ -135,8 +138,9 @@ async def predict_batch(request: BatchPredictionRequest, username: str = Depends
         # Convert Pydantic models to dicts
         features_list = [f.model_dump() for f in request.features]
 
-        # Make batch predictions
-        predictions = ml_service.predict_batch(features_list)
+        # Make batch predictions with metrics tracking
+        with track_prediction("batch"):
+            predictions = ml_service.predict_batch(features_list)
 
         return BatchPredictionResponse(
             predictions=[round(p, 3) for p in predictions],
@@ -145,6 +149,7 @@ async def predict_batch(request: BatchPredictionRequest, username: str = Depends
         )
 
     except Exception as e:
+        track_prediction_error("batch")
         raise HTTPException(
             status_code=500,
             detail=f"Batch prediction failed: {str(e)}"

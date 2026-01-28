@@ -22,6 +22,13 @@ from api.services.ml_service import ml_service
 from api.services.db_service import db_service
 from api.endpoints.predictions import router as predictions_router
 from api.endpoints.data import router as data_router
+from api.endpoints.monitoring import router as monitoring_router
+from api.middleware import PrometheusMiddleware, metrics_endpoint
+from api.middleware.metrics import (
+    update_model_status,
+    update_database_status,
+    update_mlflow_status
+)
 
 
 # =============================================================================
@@ -50,6 +57,9 @@ async def lifespan(app: FastAPI):
     else:
         print("[Startup] WARNING: Model could not be loaded!")
 
+    # Update Prometheus gauge for model status
+    update_model_status(model_loaded)
+
     # Connect to database
     print("\n[Startup] Connecting to database...")
     db_connected = db_service.connect(config.database_url)
@@ -58,9 +68,29 @@ async def lifespan(app: FastAPI):
     else:
         print("[Startup] WARNING: Database connection failed!")
 
+    # Update Prometheus gauge for database status
+    update_database_status(db_connected)
+
+    # Check MLflow connection
+    print("\n[Startup] Checking MLflow connection...")
+    mlflow_connected = False
+    try:
+        import mlflow
+        mlflow.set_tracking_uri(config.mlflow_tracking_uri)
+        experiment = mlflow.get_experiment_by_name(config.mlflow_experiment_name)
+        mlflow_connected = experiment is not None
+        if mlflow_connected:
+            print(f"[Startup] MLflow connected: {config.mlflow_tracking_uri}")
+    except Exception as e:
+        print(f"[Startup] WARNING: MLflow connection failed: {e}")
+
+    # Update Prometheus gauge for MLflow status
+    update_mlflow_status(mlflow_connected)
+
     print("\n" + "=" * 60)
     print(f"F1PA API ready at http://{config.host}:{config.port}")
     print(f"Documentation: http://{config.host}:{config.port}/docs")
+    print(f"Metrics: http://{config.host}:{config.port}/metrics")
     print("=" * 60 + "\n")
 
     yield
@@ -115,9 +145,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Prometheus metrics middleware
+app.add_middleware(PrometheusMiddleware)
+
 # Include routers
 app.include_router(predictions_router)
 app.include_router(data_router)
+app.include_router(monitoring_router)
+
+# Metrics endpoint for Prometheus scraping
+app.add_route("/metrics", metrics_endpoint)
 
 
 # =============================================================================

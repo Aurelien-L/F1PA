@@ -16,6 +16,7 @@ from api.models import (
 )
 from api.services.db_service import db_service
 from api.auth import get_current_user
+from api.middleware.metrics import track_data_query, track_db_query
 
 router = APIRouter(prefix="/data", tags=["Data Access"])
 
@@ -59,11 +60,14 @@ async def get_circuits(username: str = Depends(get_current_user)):
 
     Returns circuit key, name, location, and country information.
     """
+    track_data_query("circuits")
+
     if not db_service.is_ready():
         raise HTTPException(status_code=503, detail="Database not connected.")
 
     try:
-        circuits = db_service.get_circuits()
+        with track_db_query("get_circuits"):
+            circuits = db_service.get_circuits()
         return [CircuitResponse(**c) for c in circuits]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get circuits: {str(e)}")
@@ -146,11 +150,14 @@ async def get_drivers(username: str = Depends(get_current_user)):
 
     Returns driver number, name, acronym, team, and country.
     """
+    track_data_query("drivers")
+
     if not db_service.is_ready():
         raise HTTPException(status_code=503, detail="Database not connected.")
 
     try:
-        drivers = db_service.get_drivers()
+        with track_db_query("get_drivers"):
+            drivers = db_service.get_drivers()
         return [DriverResponse(**d) for d in drivers]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get drivers: {str(e)}")
@@ -249,18 +256,21 @@ async def get_laps(
     - Driver 1 in 2024: `GET /data/laps?driver_number=1&year=2024`
     - Paginated: `GET /data/laps?page=2&page_size=50`
     """
+    track_data_query("laps")
+
     if not db_service.is_ready():
         raise HTTPException(status_code=503, detail="Database not connected.")
 
     try:
-        result = db_service.get_laps(
-            year=year,
-            circuit_key=circuit_key,
-            driver_number=driver_number,
-            session_key=session_key,
-            page=page,
-            page_size=page_size
-        )
+        with track_db_query("get_laps"):
+            result = db_service.get_laps(
+                year=year,
+                circuit_key=circuit_key,
+                driver_number=driver_number,
+                session_key=session_key,
+                page=page,
+                page_size=page_size
+            )
 
         return PaginatedResponse(
             data=[LapResponse(**lap).model_dump() for lap in result["data"]],
