@@ -1,0 +1,88 @@
+# Prometheus Alert Rules for F1PA
+
+groups:
+  - name: f1pa_ml_alerts
+    interval: 30s
+    rules:
+      # Model prediction latency alert
+      - alert: HighPredictionLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{endpoint="/predict/lap"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_model
+        annotations:
+          summary: "High ML prediction latency"
+          description: "95th percentile prediction latency is {{ $value }}s (threshold: 1s)"
+
+      # Model prediction error rate
+      - alert: HighPredictionErrorRate
+        expr: rate(f1pa_prediction_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: ml_model
+        annotations:
+          summary: "High prediction error rate"
+          description: "Prediction error rate is {{ $value }} (threshold: 5%)"
+
+      # Model not loaded
+      - alert: ModelNotLoaded
+        expr: f1pa_model_loaded == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: ml_model
+        annotations:
+          summary: "ML model not loaded"
+          description: "The ML model failed to load or is unavailable"
+
+  - name: f1pa_api_alerts
+    interval: 30s
+    rules:
+      # API high error rate
+      - alert: HighAPIErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate is {{ $value | humanizePercentage }}"
+
+      # API down
+      - alert: APIDown
+        expr: up{job="f1pa_api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "F1PA API is down"
+          description: "The API has been unreachable for more than 1 minute"
+
+  - name: f1pa_database_alerts
+    interval: 60s
+    rules:
+      # Database connection issues
+      - alert: DatabaseConnectionIssues
+        expr: f1pa_database_connected == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Database connection failed"
+          description: "Cannot connect to PostgreSQL database"
+
+      # Slow database queries
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, rate(f1pa_db_query_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile query time is {{ $value }}s (threshold: 2s)"

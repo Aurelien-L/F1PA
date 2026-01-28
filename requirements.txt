@@ -30,4 +30,5 @@ uvicorn[standard]
 pydantic
 
 # Monitoring
-evidently
+evidently==0.4.33
+prometheus-client

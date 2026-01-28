@@ -14,14 +14,15 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
+import os
 import pickle
 from pathlib import Path
 import mlflow
 import cloudpickle
 
 # Configuration MLflow
-MLFLOW_TRACKING_URI = "http://localhost:5000"
-MLFLOW_EXPERIMENT_NAME = "F1PA_LapTime_Prediction"
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "F1PA_LapTime_Prediction")
 
 # Chemins des modèles locaux (backup)
 MODELS_DIR = Path(__file__).parent.parent / "models"

@@ -1,0 +1,40 @@
+# Prometheus Configuration for F1PA Monitoring
+# Version: Latest (v2.50+)
+
+global:
+  scrape_interval: 15s      # Scrape metrics every 15 seconds
+  evaluation_interval: 15s  # Evaluate rules every 15 seconds
+  external_labels:
+    cluster: 'f1pa'
+    environment: 'production'
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - alertmanager:9093
+
+# Load rules
+rule_files:
+  - 'alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # F1PA FastAPI Application
+  - job_name: 'f1pa_api'
+    static_configs:
+      - targets: ['api:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Note: PostgreSQL and MLflow do not expose Prometheus metrics by default
+  # To monitor them, you would need to:
+  # - Add postgres_exporter service to docker-compose.yml for PostgreSQL monitoring
+  # - MLflow doesn't provide /metrics endpoint - monitor via API metrics instead
