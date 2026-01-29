@@ -1,8 +1,8 @@
 """
 F1PA - Evidently Drift Monitoring
 
-Génère des rapports de drift pour surveiller la performance du modèle ML en production.
-Compatible avec Evidently 0.4.33
+Generate drift reports to monitor ML model performance in production.
+Compatible with Evidently 0.4.33
 """
 import os
 import sys
@@ -31,7 +31,7 @@ class DriftMonitor:
         self.reports_dir = Path(PROJECT_ROOT) / reports_dir
         self.reports_dir.mkdir(parents=True, exist_ok=True)
 
-        # Colonnes du dataset F1PA (features utilisées pour les prédictions)
+        # Colonnes du dataset F1PA (features utilisées for les predictions)
         self.feature_columns = [
             'driver_number', 'circuit_key', 'st_speed', 'i1_speed', 'i2_speed',
             'temp', 'rhum', 'pres', 'lap_number', 'year'
@@ -73,12 +73,12 @@ class DriftMonitor:
         print(f"  Données de référence: {len(ref_data)} tours")
         print(f"  Données actuelles: {len(curr_data)} tours")
 
-        # Créer le rapport Evidently avec DataDriftPreset
+        # Creater le report Evidently with DataDriftPreset
         report = Report(metrics=[
             DataDriftPreset()
         ])
 
-        # Exécuter le rapport
+        # Executer le report
         print("  Exécution de l'analyse de drift...")
         report.run(
             reference_data=ref_data,
@@ -118,19 +118,19 @@ class DriftMonitor:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_name = f"model_performance_{timestamp}"
 
-        # Ajouter les prédictions aux DataFrames
+        # Ajouter les predictions aux DataFrames
         ref_data = reference_data[self.feature_columns + [self.target_column]].copy()
         ref_data['prediction'] = reference_predictions.values
 
         curr_data = current_data[self.feature_columns + [self.target_column]].copy()
         curr_data['prediction'] = current_predictions.values
 
-        # Créer le rapport avec RegressionPreset
+        # Creater le report with RegresifonPreset
         report = Report(metrics=[
             RegressionPreset()
         ])
 
-        # Exécuter le rapport
+        # Executer le report
         report.run(
             reference_data=ref_data,
             current_data=curr_data,
@@ -145,7 +145,7 @@ class DriftMonitor:
         return str(report_path)
 
     def list_reports(self) -> list:
-        """Liste tous les rapports générés."""
+        """Liste tous les reports générés."""
         reports = sorted(self.reports_dir.glob("*.html"), reverse=True)
         return [str(r) for r in reports]
 
@@ -156,7 +156,6 @@ def example_usage():
     print("F1PA - Evidently Drift Monitoring - Exemple")
     print("=" * 80 + "\n")
 
-    # Importer le dataset
     from ml.config import DATA_DIR
 
     data_path = DATA_DIR / "processed" / "dataset_ml_lap_level_2023_2024_2025.csv"
@@ -167,10 +166,10 @@ def example_usage():
             data_path = data_path_alt
         else:
             print(f"❌ Dataset introuvable: {data_path}")
-            print("Exécuter d'abord: python -m data.fetch")
+            print("Executer d'abord: python -m data.fetch")
             return
 
-    # Charger les données
+    # Loadr les data
     print("Chargement du dataset...")
     df = pd.read_csv(data_path)
 
@@ -185,8 +184,8 @@ def example_usage():
     # Initialiser le monitor
     monitor = DriftMonitor()
 
-    # Générer rapport de drift
-    print("Génération du rapport de drift...")
+    # Générer report de drift
+    print("Génération du report de drift...")
     drift_report = monitor.generate_data_drift_report(
         reference_data=reference_data,
         current_data=current_data,

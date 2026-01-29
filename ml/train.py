@@ -1,22 +1,21 @@
 """
 F1PA - Model Training with GridSearchCV + MLflow Tracking
 
-Pipeline d'entraînement avec:
-1. Baseline models (hyperparamètres par défaut)
-2. GridSearchCV pour tuning léger
-3. Comparaison XGBoost vs Random Forest
-4. Tracking MLflow complet
+Training pipeline with:
+1. Baseline models (default hyperparameters)
+2. GridSearchCV for light tuning
+3. XGBoost vs Random Forest comparison
+4. Complete MLflow tracking
 
-MLflow logs pour chaque run:
-- Hyperparamètres
-- Métriques (MAE, RMSE, R², MAPE) sur train/val/test
+MLflow logs for each run:
+- Hyperparameters
+- Metrics (MAE, RMSE, R², MAPE) on train/val/test
 - Feature importance
-- Modèle sérialisé
+- Serialized model
 - Metadata
 """
 from __future__ import annotations
 
-# IMPORTANT: Set matplotlib backend BEFORE importing pyplot
 # This prevents tkinter errors when running with parallel jobs (n_jobs=-1) on Windows
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend, no GUI required
@@ -56,7 +55,7 @@ def log(msg: str) -> None:
 
 
 def calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    """Calcule les 4 métriques principales."""
+    """Calculate les 4 métriques principales."""
     mae = mean_absolute_error(y_true, y_pred)
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
     r2 = r2_score(y_true, y_pred)
@@ -100,7 +99,7 @@ def cross_validate_model(model, X: pd.DataFrame, y: pd.Series, cv_folds: int = 5
 
 def plot_feature_importance(model, feature_names: list[str], model_name: str,
                              save_path: Path) -> pd.DataFrame:
-    """Génère graphique feature importance."""
+    """Generate graph feature importance."""
     if hasattr(model, 'feature_importances_'):
         importances = model.feature_importances_
     else:
@@ -132,7 +131,7 @@ def plot_feature_importance(model, feature_names: list[str], model_name: str,
 
 def run_gridsearch(model_name: str, X_train: pd.DataFrame, y_train: pd.Series) -> tuple:
     """
-    Execute GridSearchCV pour tuning léger.
+    Execute GridSearchCV for tuning léger.
 
     Returns:
         (best_model, best_params, grid_results)
@@ -189,7 +188,7 @@ def train_model_with_gridsearch(
     use_gridsearch: bool = True
 ) -> dict:
     """
-    Entraîne un modèle (avec ou sans GridSearch) + tracking MLflow.
+    Entraîne un model (with ou sans GridSearch) + tracking MLflow.
 
     Pipeline:
     1. GridSearchCV (si use_gridsearch=True) ou baseline params
@@ -212,15 +211,15 @@ def train_model_with_gridsearch(
         description = f"""
 F1 Lap Time PERFORMANCE Prediction - {model_name.upper()} {'with GridSearchCV' if use_gridsearch else 'Baseline'}
 
-OBJECTIF: Prédire le temps au tour d'un pilote AVANT qu'il roule
-(basé sur performance historique + conditions, PAS sur les temps secteurs)
+OBJECTIF: Prédire le time au tour d'un pilote AVANT qu'il roule
+(basé sur performance historique + conditions, PAS sur les time secteurs)
 
 Dataset: 71,645 laps (2023-2025)
 Train: 47,266 laps (2023-2024) | Test: 24,379 laps (2025)
 Features: vitesses + météo + driver_perf_score + circuit_avg_laptime
 
-Note: Les temps secteurs (duration_sector_*) sont EXCLUS car ils représentent
-des données du tour en cours, pas des prédicteurs.
+Note: Les time secteurs (duration_sector_*) sont EXCLUS car ils représentent
+des data du tour en cours, pas des prédicteurs.
         """.strip()
         mlflow.set_tag("mlflow.note.content", description)
 
@@ -433,7 +432,7 @@ des données du tour en cours, pas des prédicteurs.
 
 
 def compare_models(results: list[dict]) -> None:
-    """Compare les performances de tous les modèles."""
+    """Compare les performances de tous les models."""
     log("=" * 80)
     log("MODEL COMPARISON")
     log("=" * 80)
@@ -453,7 +452,7 @@ def compare_models(results: list[dict]) -> None:
     df_comp = pd.DataFrame(comparison)
     print(df_comp.to_string(index=False))
 
-    # Meilleur modèle = MAE test le plus faible
+    # Meilleur model = MAE test le plus faible
     best_idx = df_comp['Test MAE'].idxmin()
     best_model = df_comp.loc[best_idx, 'Model']
 

@@ -79,7 +79,7 @@ def _enrich_one_session(
     session_key: int,
 ) -> tuple[pd.DataFrame, int, int]:
     """
-    Ajoute les métadonnées de session à chaque lap.
+    Ajoute les métadata de sesifon à chaque lap.
     Retourne: df_out, n_missing_meta, n_missing_lap_date_start
     """
     # 1) Récupération métadonnées scope (1 ligne)

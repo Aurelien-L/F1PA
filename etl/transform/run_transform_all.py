@@ -28,7 +28,7 @@ def _log(msg: str) -> None:
 
 def _run_module(module: str, args: List[str], ok_codes: Optional[List[int]] = None) -> int:
     """
-    Exécute: python -m <module> <args...>
+    Execute: python -m <module> <args...>
     Retourne le code. Erreur seulement si code pas dans ok_codes.
     """
     if ok_codes is None:
@@ -47,7 +47,7 @@ def _run_module(module: str, args: List[str], ok_codes: Optional[List[int]] = No
 
 def _safe_rmtree(path: Path) -> None:
     """
-    Suppression défensive :
+    Suppresifon défenifve :
     - n'efface que sous data/transform
     - n'efface que si le dossier existe
     """

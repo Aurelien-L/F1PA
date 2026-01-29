@@ -1,14 +1,14 @@
 """
 F1PA - ML Configuration
 
-Centralise tous les paramètres du pipeline ML pour faciliter les expérimentations.
+Centralizes all ML pipeline parameters to facilitate experimentation.
 
-OBJECTIF DU MODÈLE:
-Prédire le temps au tour d'un pilote sur un circuit AVANT qu'il roule,
-basé sur sa performance historique et les conditions.
+MODEL OBJECTIVE:
+Predict a driver's lap time on a circuit BEFORE they drive,
+based on their historical performance and conditions.
 
-Ce n'est PAS un prédicteur de temps final basé sur les temps secteurs
-(ce qui serait trivial car lap_duration ≈ sum(sector_times)).
+This is NOT a final time predictor based on sector times
+(which would be trivial since lap_duration ≈ sum(sector_times)).
 """
 import os
 from pathlib import Path

@@ -11,7 +11,7 @@ def api_url():
     return "http://localhost:8000"
 
 def test_model_is_loaded_from_mlflow(api_url, api_credentials):
-    """Test: le modèle est chargé depuis MLflow via l'API"""
+    """Test: le model est chargé from MLflow via l'API"""
     response = requests.get(
         f"{api_url}/predict/model",
         auth=HTTPBasicAuth(api_credentials["username"], api_credentials["password"])
@@ -25,7 +25,7 @@ def test_model_is_loaded_from_mlflow(api_url, api_credentials):
     assert model_info["run_name"] is not None
 
 def test_model_has_complete_metrics(api_url, api_credentials):
-    """Test: le modèle a toutes les métriques"""
+    """Test: le model a toutes les métriques"""
     response = requests.get(
         f"{api_url}/predict/model",
         auth=HTTPBasicAuth(api_credentials["username"], api_credentials["password"])
@@ -33,18 +33,18 @@ def test_model_has_complete_metrics(api_url, api_credentials):
     assert response.status_code == 200
     model_info = response.json()
 
-    # Vérifier métriques complètes
+    # Checkr métriques complètes
     assert model_info["test_mae"] is not None
     assert model_info["test_r2"] is not None
     assert model_info["cv_mae"] is not None
     assert model_info["cv_r2"] is not None
 
-    # Vérifier cohérence
+    # Checkr cohérence
     assert 0 < model_info["test_mae"] < 5
     assert 0.5 < model_info["test_r2"] < 1
 
 def test_prediction_returns_valid_time(api_url, api_credentials, sample_features):
-    """Test: prédiction retourne un temps cohérent"""
+    """Test: prediction return un time consistent"""
     response = requests.post(
         f"{api_url}/predict/lap",
         json={"features": sample_features},
@@ -59,7 +59,7 @@ def test_prediction_returns_valid_time(api_url, api_credentials, sample_features
 
 def test_predictions_are_deterministic(api_url, api_credentials, sample_features):
     """Test: même input = même output"""
-    # Faire 2 prédictions identiques
+    # Faire 2 predictions identiques
     response1 = requests.post(
         f"{api_url}/predict/lap",
         json={"features": sample_features},
@@ -77,11 +77,11 @@ def test_predictions_are_deterministic(api_url, api_credentials, sample_features
     time1 = response1.json()["lap_duration_seconds"]
     time2 = response2.json()["lap_duration_seconds"]
 
-    # Les temps doivent être identiques
-    assert abs(time1 - time2) < 0.001, "Les prédictions devraient être déterministes"
+    # Les time doivent être identiques
+    assert abs(time1 - time2) < 0.001, "Les predictions devraient être déterministes"
 
 def test_different_drivers_different_predictions(api_url, api_credentials, sample_features):
-    """Test: pilotes différents = temps différents"""
+    """Test: pilotes différents = time différents"""
     features_ver = sample_features.copy()
     features_ver["driver_number"] = 1  # Verstappen
 

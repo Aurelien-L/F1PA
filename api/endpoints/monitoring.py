@@ -1,7 +1,7 @@
 """
 F1PA API - Monitoring Endpoints
 
-Endpoints pour accéder aux rapports de monitoring ML (Evidently).
+Endpoints for accéder aux reports de monitoring ML (Evidently).
 """
 import sys
 from pathlib import Path
@@ -39,7 +39,7 @@ async def get_drift_report(
     username: str = Depends(get_current_user)
 ):
     """
-    Récupère un rapport de drift spécifique.
+    Retrieve un report de drift spécifique.
 
     Args:
         report_name: Nom du fichier rapport (avec .html)
@@ -66,7 +66,7 @@ async def get_drift_report(
 @router.get("/drift/latest")
 async def get_latest_drift_report(username: str = Depends(get_current_user)):
     """
-    Récupère le dernier rapport de drift généré.
+    Retrieve le dernier report de drift généré.
 
     Returns:
         Contenu HTML du dernier rapport
@@ -91,7 +91,7 @@ async def get_latest_drift_report(username: str = Depends(get_current_user)):
 @router.get("/status")
 async def get_monitoring_status(username: str = Depends(get_current_user)):
     """
-    Récupère le statut du monitoring.
+    Retrieve le statut du monitoring.
 
     Returns:
         Informations sur les rapports disponibles

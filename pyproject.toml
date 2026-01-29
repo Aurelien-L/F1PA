@@ -1,0 +1,29 @@
+[tool.pylint.main]
+max-line-length = 127
+disable = [
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0913",  # too-many-arguments
+    "R0914",  # too-many-locals
+    "W0212",  # protected-access
+    "C0103",  # invalid-name (for variables like df, X, y)
+    "C0413",  # wrong-import-position (FastAPI needs imports after sys.path modification)
+    "C0415",  # import-outside-toplevel (sometimes needed for lazy imports)
+    "W0718",  # broad-exception-caught (catching Exception is fine in many cases)
+    "W0613",  # unused-argument (FastAPI dependencies)
+    "W0621",  # redefined-outer-name (common in fixtures/dependencies)
+]
+ignore = [".git", ".venv", "venv", "__pycache__", "mlflow_db", "mlartifacts", "models", "data"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --strict-markers --cov=. --cov-report=term-missing --cov-report=html"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]

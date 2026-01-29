@@ -1,5 +1,5 @@
 """
 F1PA - Machine Learning Package
 
-Pipeline complet pour prédire lap_duration en Formule 1.
+Pipeline complet for prédire lap_duration en Formule 1.
 """

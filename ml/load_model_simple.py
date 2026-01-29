@@ -1,12 +1,12 @@
 """
-F1PA - Charger les Modèles
+F1PA - Loadr les Modèles
 
-Les modèles peuvent être chargés de 3 façons:
-1. Depuis MLflow (dernier run) - RECOMMANDÉ pour toujours avoir le dernier modèle
+Les models peuvent être chargés de 3 façons:
+1. Depuis MLflow (dernier run) - RECOMMANDÉ for toujours avoir le dernier model
 2. Depuis MLflow (via Run ID spécifique) - Pour reproductibilité
 3. Depuis fichier local .pkl - BACKUP si MLflow indisponible
 
-Les modèles sont automatiquement recherchés dans MLflow sans dépendre d'IDs prédéfinis.
+Les models sont automatiquement recherchés dans MLflow sans dépendre d'IDs prédéfinis.
 """
 import sys
 import io
@@ -32,11 +32,11 @@ MODEL_RF_PATH = MODELS_DIR / "random_forest_gridsearch_model.pkl"
 
 def get_best_model_from_mlflow(strategy="robust", model_family=None):
     """
-    Récupère le meilleur modèle depuis MLflow selon une stratégie.
+    Retrieve le meilleur model from MLflow selon une stratégie.
 
     Args:
         strategy: "robust" (meilleur overfitting) ou "mae" (meilleur MAE absolu)
-        model_family: "xgboost", "random_forest" ou None (tous les modèles)
+        model_family: "xgboost", "random_forest" ou None (tous les models)
 
     Returns:
         run_id: ID du meilleur run
@@ -99,16 +99,16 @@ def get_best_model_from_mlflow(strategy="robust", model_family=None):
 
 def load_model_from_mlflow(strategy="robust", model_family="xgboost", run_id=None):
     """
-    Charge un modèle depuis MLflow.
+    Load un model from MLflow.
 
     Args:
         strategy: "robust" (meilleur overfitting) ou "mae" (meilleur MAE)
         model_family: "xgboost" ou "random_forest"
-        run_id: ID spécifique d'un run (optionnel, pour reproductibilité)
+        run_id: ID spécifique d'un run (optionnel, for reproductibilité)
 
     Returns:
-        model: Modèle chargé depuis MLflow
-        info: Dictionnaire avec les métadonnées du modèle
+        model: Modèle chargé from MLflow
+        info: Dictionnaire with les métadata du model
     """
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
@@ -173,14 +173,14 @@ def load_model_from_mlflow(strategy="robust", model_family="xgboost", run_id=Non
 
 def load_model_local(model_family="xgboost"):
     """
-    Charge un modèle depuis un fichier local (backup si MLflow indisponible).
+    Load un model from un file local (backup if MLflow indisponible).
 
     Args:
         model_family: "xgboost" ou "random_forest"
 
     Returns:
         model: Modèle chargé
-        info: Dictionnaire avec les métadonnées basiques
+        info: Dictionnaire with les métadata baifques
     """
     if model_family == "xgboost":
         model_path = MODEL_XGBOOST_PATH
@@ -210,7 +210,7 @@ def load_model_local(model_family="xgboost"):
 
 
 def show_models_info():
-    """Affiche les informations sur tous les modèles disponibles dans MLflow."""
+    """Affiche les informations sur tous les models disponibles dans MLflow."""
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
     print("=" * 80)
@@ -224,7 +224,7 @@ def show_models_info():
             print("Have you run the training pipeline? (python -m ml.train)")
             return
 
-        # Récupérer tous les runs avec GridSearch
+        # Récupérer tous les runs with GridSearch
         runs = mlflow.search_runs(
             experiment_ids=[experiment.experiment_id],
             filter_string="tags.tuning_method = 'gridsearch'",
@@ -287,13 +287,13 @@ def show_models_info():
 # Exemple d'utilisation
 if __name__ == '__main__':
     print("\n" + "=" * 80)
-    print("F1PA - Chargement des Modèles")
+    print("F1PA - Loadment des Modèles")
     print("=" * 80)
 
-    # Afficher les modèles disponibles
+    # Afficher les models disponibles
     show_models_info()
 
-    # Charger le modèle recommandé (Robust XGBoost)
+    # Loadr le model recommandé (Robust XGBoost)
     print("\n" + "=" * 80)
     print("CHARGEMENT MODÈLE RECOMMANDÉ")
     print("=" * 80 + "\n")
@@ -301,17 +301,17 @@ if __name__ == '__main__':
     print("Méthode 1: Depuis MLflow (stratégie 'robust' - RECOMMANDÉ)")
     try:
         model, info = load_model_from_mlflow(strategy="robust", model_family="xgboost")
-        print("\n✅ Modèle chargé depuis MLflow avec succès")
+        print("\n✅ Modèle chargé from MLflow with succès")
         print(f"\nUtilisation:")
         print(f"  predictions = model.predict(X_new)")
     except Exception as e:
         print(f"\n⚠️ MLflow indisponible: {e}")
         print("\nEssayer la méthode locale comme backup...")
         print("\n" + "-" * 80 + "\n")
-        print("Méthode 2: Depuis fichier local .pkl (backup)")
+        print("Méthode 2: Depuis file local .pkl (backup)")
         try:
             model, info = load_model_local(model_family="xgboost")
-            print("\n✅ Modèle chargé depuis fichier local")
+            print("\n✅ Modèle chargé from file local")
         except Exception as e:
             print(f"❌ Erreur: {e}")
 
@@ -322,7 +322,7 @@ if __name__ == '__main__':
     print("model, info = load_model_from_mlflow(strategy='mae', model_family='xgboost')")
     print("\n# Charger Random Forest")
     print("model, info = load_model_from_mlflow(strategy='robust', model_family='random_forest')")
-    print("\n# Charger un run spécifique (reproductibilité)")
+    print("\n# Loadr un run spécifique (reproductibilité)")
     print("model, info = load_model_from_mlflow(run_id='<RUN_ID>')")
     print("\n# Charger depuis fichier local")
     print("model, info = load_model_local(model_family='xgboost')")
