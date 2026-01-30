@@ -19,8 +19,18 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install pylint
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
         run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
           pip install pylint
 
       - name: Lint with pylint
@@ -78,15 +88,7 @@ jobs:
           POSTGRES_USER: f1pa
           POSTGRES_PASSWORD: f1pa
         run: |
-          pytest tests/ -v --cov=. --cov-report=xml --cov-report=term-missing
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
+          pytest tests/ -v --cov=. --cov-report=term-missing
 
   build:
     name: Build Docker Images

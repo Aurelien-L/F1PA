@@ -183,8 +183,8 @@ Push → Lint → Tests → Build → Deploy
 
 **Tests locaux** :
 ```bash
-pylint api/ ml/ etl/            # Vérification code quality
-pytest tests/ -v --cov          # 40 tests, 100% coverage critique
+pylint --rcfile=pyproject.toml api/ ml/ etl/ monitoring/ streamlit/ tests/ scripts/  # Code quality
+pytest tests/ -v --cov=. --cov-report=term-missing  # 40 tests avec coverage
 docker compose build            # Build images
 docker compose up -d            # Lancer services
 ```
