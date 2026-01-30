@@ -55,6 +55,7 @@ services:
     volumes:
       - ./models:/app/models
       - ./data:/app/data
+      - ./monitoring/evidently/reports:/app/monitoring/evidently/reports
 
   streamlit:
     build:

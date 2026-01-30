@@ -10,7 +10,7 @@ client = TestClient(app)
 def test_health_endpoint():
     """Test: endpoint /health répond"""
     response = client.get("/")
-    # Peut retourner 200 (si route définie) ou 404 (si pas de route racine)
+    # Peut returnr 200 (if route définie) ou 404 (if pas de route racine)
     assert response.status_code in [200, 404]
 
 def test_docs_endpoint():
@@ -32,7 +32,7 @@ def test_model_info_without_auth():
     assert response.status_code == 401  # Unauthorized
 
 def test_model_info_with_auth(api_credentials):
-    """Test: endpoint /predict/model avec auth (peut être 503 si services down)"""
+    """Test: endpoint /predict/model with auth (peut être 503 if services down)"""
     response = client.get(
         "/predict/model",
         auth=(api_credentials["username"], api_credentials["password"])
@@ -42,13 +42,13 @@ def test_model_info_with_auth(api_credentials):
     
     if response.status_code == 200:
         data = response.json()
-        # Vérifier les champs obligatoires
+        # Checkr les champs obligatoires
         assert "model_family" in data
         assert "source" in data
         assert data["source"] in ["mlflow", "local"]
 
 def test_prediction_endpoint_structure(api_credentials, sample_features):
-    """Test: endpoint /predict/lap structure (peut être 503 si services down)"""
+    """Test: endpoint /predict/lap structure (peut être 503 if services down)"""
     response = client.post(
         "/predict/lap",
         json={"features": sample_features},
@@ -69,7 +69,7 @@ def test_prediction_endpoint_structure(api_credentials, sample_features):
         assert ":" in data["lap_duration_formatted"]
 
 def test_prediction_invalid_features(api_credentials):
-    """Test: prédiction avec features invalides échoue"""
+    """Test: prediction with features invalid échoue"""
     response = client.post(
         "/predict/lap",
         json={"features": {"invalid": "data"}},
@@ -78,7 +78,7 @@ def test_prediction_invalid_features(api_credentials):
     assert response.status_code == 422  # Validation error
 
 def test_prediction_missing_auth():
-    """Test: prédiction sans auth échoue"""
+    """Test: prediction sans auth échoue"""
     response = client.post(
         "/predict/lap",
         json={"features": {"test": "data"}}
@@ -86,7 +86,7 @@ def test_prediction_missing_auth():
     assert response.status_code == 401  # Unauthorized
 
 def test_drivers_endpoint(api_credentials):
-    """Test: endpoint /data/drivers (peut être 503 si DB down)"""
+    """Test: endpoint /data/drito (peut être 503 if DB down)"""
     response = client.get(
         "/data/drivers",
         auth=(api_credentials["username"], api_credentials["password"])
@@ -103,7 +103,7 @@ def test_drivers_endpoint(api_credentials):
             assert "full_name" in driver
 
 def test_circuits_endpoint(api_credentials):
-    """Test: endpoint /data/circuits (peut être 503 si DB down)"""
+    """Test: endpoint /data/circuits (peut être 503 if DB down)"""
     response = client.get(
         "/data/circuits",
         auth=(api_credentials["username"], api_credentials["password"])
@@ -120,7 +120,7 @@ def test_circuits_endpoint(api_credentials):
             assert "circuit_short_name" in circuit
 
 def test_auth_invalid_credentials():
-    """Test: authentification avec mauvais credentials échoue"""
+    """Test: authentification with mauvais credentials échoue"""
     response = client.get(
         "/predict/model",
         auth=("wrong", "credentials")

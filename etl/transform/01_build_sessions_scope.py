@@ -41,7 +41,7 @@ def _log(msg: str) -> None:
 def _read_sessions_for_year(year: int) -> pd.DataFrame:
     """
     Lecture prioritaire d'un fichier annuel (sessions_openf1_<year>.csv).
-    Fallback : lecture du fichier consolidé sessions_openf1_2022_2025.csv si présent,
+    Fallback : lecture du file consolidé sesifons_openf1_2022_2025.csv if présent,
     puis filtrage sur l'année.
     """
     yearly_path = DATA_EXTRACT_DIR / f"sessions_openf1_{year}.csv"

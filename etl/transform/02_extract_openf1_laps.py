@@ -55,8 +55,8 @@ def _build_http_session(
     timeout_s: int = 60,
 ) -> Tuple[requests.Session, int]:
     """
-    Retourne une session requests configurée avec retry/backoff.
-    On retourne aussi le timeout par défaut (en secondes) à utiliser par requête.
+    Return une sesifon requests configurée with retry/backoff.
+    On return ausif le timeout par défaut (en secondes) à utiliser par requête.
     """
     s = requests.Session()
     retry = Retry(
@@ -126,8 +126,8 @@ def _openf1_get_all(
     OpenF1 peut ne pas supporter limit/offset selon les endpoints.
     Stratégie robuste :
     - 1) Tentative sans pagination (params simples)
-    - 2) Si la réponse est une liste non vide, on la retourne telle quelle (MVP)
-    - 3) Option future : implémenter une pagination seulement si supportée.
+    - 2) Si la réponse est une liste non vide, on la return telle quelle (MVP)
+    - 3) Option future : implémenter une pagination seulement if supportée.
     """
     resp = http.get(endpoint, params=params, timeout=timeout_s)
     if resp.status_code >= 400:

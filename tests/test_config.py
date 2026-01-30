@@ -31,7 +31,7 @@ def test_mlflow_experiment_name():
     assert "F1PA" in MLFLOW_EXPERIMENT_NAME
 
 def test_paths_exist():
-    """Test: vérifier que les chemins de config existent"""
+    """Test: checkr que les chemins de config existent"""
     from ml.config import PROJECT_ROOT, DATA_DIR, MODELS_DIR
     
     assert PROJECT_ROOT.exists()

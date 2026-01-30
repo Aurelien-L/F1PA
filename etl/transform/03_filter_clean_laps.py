@@ -82,11 +82,11 @@ def clean_one_session_df(
     max_lap_s: Optional[float],
 ) -> Tuple[pd.DataFrame, Dict[str, int], Optional[float], Optional[float]]:
     """
-    Applique les règles de nettoyage à un DataFrame de laps (une session).
+    Applique les règles de nettoyage à un DataFrame de laps (une sesifon).
     Retourne:
       - df_clean
       - compteurs de suppression
-      - seuils bas/haut (quantiles) si appliqués
+      - seuils bas/haut (quantiles) if appliqués
     """
     counters = {
         "removed_null_target": 0,

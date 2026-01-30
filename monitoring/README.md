@@ -173,7 +173,7 @@ Le dashboard **F1PA ML Model Monitoring** contient :
 
 ```bash
 # Exécuter la génération du rapport (le script est déjà présent)
-docker exec f1pa_api python generate_drift_report.py
+docker exec f1pa_api python scripts/generate_drift_report.py
 ```
 
 **Option 2 : Via code Python**
@@ -272,31 +272,6 @@ docker logs f1pa_prometheus
 docker logs f1pa_grafana
 ```
 
-## 🎓 Bonnes Pratiques
-
-### 1. **Retention des données**
-- Prometheus : 15 jours par défaut
-- Augmenter si besoin dans `docker-compose.yml` :
-  ```yaml
-  command:
-    - '--storage.tsdb.retention.time=30d'
-  ```
-
-### 2. **Génération de rapports Evidently**
-- Automatiser via cron job ou task périodique
-- Conserver les 10 derniers rapports maximum
-- Comparer les périodes pertinentes (1 semaine, 1 mois)
-
-### 3. **Alertes Slack/Email**
-- Configurer Alertmanager (non inclus par défaut)
-- Ajouter des webhooks vers Slack/Teams
-- Définir des escalations
-
-### 4. **Performance**
-- Ajuster `scrape_interval` selon les besoins (10s par défaut)
-- Monitorer l'usage mémoire de Prometheus
-- Utiliser le downsampling pour les métriques anciennes
-
 ## 🧪 Tests
 
 ### Générer du trafic test
@@ -324,97 +299,3 @@ curl -u f1pa:f1pa -X POST http://localhost:8000/predict/lap \
 # Vérifier le compteur d'erreurs
 curl http://localhost:8000/metrics | grep f1pa_prediction_errors
 ```
-
-## 🔧 Troubleshooting
-
-### Problème : Grafana affiche "Datasource prometheus not found"
-
-**Cause** : Le datasource Prometheus n'a pas d'UID défini dans le provisioning.
-
-**Solution** :
-```yaml
-# Dans monitoring/grafana/provisioning/datasources/prometheus.yml
-datasources:
-  - name: Prometheus
-    type: prometheus
-    uid: prometheus  # ← Ajouter cette ligne
-    url: http://prometheus:9090
-```
-
-Redémarrer Grafana : `docker-compose restart grafana`
-
-### Problème : Panels Grafana affichent "TypeError: Cannot read properties of undefined"
-
-**Cause** : Format de mapping incompatible avec Grafana 11.5.
-
-**Solution** : Utiliser le nouveau format dans le dashboard JSON :
-```json
-"mappings": [{
-  "type": "value",
-  "options": {
-    "0": {"text": "Not Loaded", "color": "red"},
-    "1": {"text": "Loaded", "color": "green"}
-  }
-}]
-```
-
-### Problème : API bloque au démarrage sur "Loading ML model..."
-
-**Cause** : MLflow URI hardcodé à `localhost:5000` au lieu d'utiliser la variable d'environnement.
-
-**Solution** :
-```python
-# Dans ml/load_model_simple.py
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
-```
-
-Le docker-compose définit déjà `MLFLOW_TRACKING_URI=http://mlflow:5000`.
-
-### Problème : Prometheus targets mlflow/postgres échouent
-
-**Cause** : MLflow et PostgreSQL n'exposent pas de endpoint `/metrics` par défaut.
-
-**Solution** : Retirer ces targets du `prometheus.yml`. Seule la target `f1pa_api` doit être configurée.
-
-### Problème : Panel "Prediction Error Rate" affiche "No data"
-
-**Cause** : La métrique `f1pa_prediction_errors_total` n'existe que s'il y a eu des erreurs.
-
-**Solution** : Utiliser `OR on() vector(0)` dans la query Prometheus :
-```promql
-rate(f1pa_prediction_errors_total[5m]) OR on() vector(0)
-```
-
-### Problème : Evidently ne génère pas de rapports HTML
-
-**Status** : ✅ **Résolu** - Evidently 0.4.33 est maintenant installé.
-
-Si vous rencontrez ce problème après une mise à jour ou un rollback :
-
-**Cause** : Version d'Evidently incompatible (0.7.20 n'a pas de méthode `save_html()`).
-
-**Solution** : Vérifier que `requirements.txt` contient `evidently==0.4.33` et rebuilder :
-```bash
-# Vérifier requirements.txt
-grep evidently requirements.txt
-# Doit afficher: evidently==0.4.33
-
-# Si nécessaire, rebuilder
-docker-compose build api
-docker-compose up -d
-```
-
-## 🔗 Ressources
-
-- [Documentation Prometheus](https://prometheus.io/docs/)
-- [Documentation Grafana](https://grafana.com/docs/)
-- [Documentation Evidently](https://docs.evidentlyai.com/)
-- [Best Practices - ML Monitoring](https://ml-ops.org/content/mlops-principles)
-
-## 📞 Support
-
-En cas de problème :
-1. Vérifier les logs : `docker logs <container_name>`
-2. Vérifier que tous les services sont UP : `docker ps`
-3. Tester les endpoints individuellement
-4. Consulter la documentation officielle

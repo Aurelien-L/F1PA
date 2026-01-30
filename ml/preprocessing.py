@@ -1,19 +1,19 @@
 """
 F1PA - Preprocessing Pipeline
 
-Gère:
-1. Imputation des valeurs manquantes (stratégie intelligente par type de feature)
-2. Feature engineering (création de features dérivées PRÉDICTIVES)
-3. Encodage des variables catégorielles (Target Encoding)
-4. Préparation train/test split temporel
+Handles:
+1. Missing value imputation (intelligent strategy by feature type)
+2. Feature engineering (creation of PREDICTIVE derived features)
+3. Categorical variable encoding (Target Encoding)
+4. Temporal train/test split preparation
 
-IMPORTANT: Ce pipeline prépare les données pour un modèle de PRÉDICTION
-de performance, PAS un modèle de calcul de temps final.
+IMPORTANT: This pipeline prepares data for a PERFORMANCE prediction model,
+NOT a final time calculation model.
 
-Les temps secteurs (duration_sector_*) sont EXCLUS car ils représentent
-des données du tour en cours, pas des prédicteurs avant le tour.
+Sector times (duration_sector_*) are EXCLUDED as they represent
+current lap data, not predictors before the lap.
 
-Justifications techniques détaillées dans ml/README.md
+Detailed technical justifications in ml/README.md
 """
 from __future__ import annotations
 
@@ -33,10 +33,10 @@ def log(msg: str) -> None:
 
 def load_dataset(dataset_path: Path) -> pd.DataFrame:
     """
-    Charge le dataset ML.
+    Load ML dataset.
 
     Returns:
-        DataFrame avec 71,645 laps × 31 colonnes
+        DataFrame with 71,645 laps × 31 columns
     """
     log(f"Loading dataset: {dataset_path}")
     df = pd.read_csv(dataset_path)
@@ -46,26 +46,26 @@ def load_dataset(dataset_path: Path) -> pd.DataFrame:
 
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Imputation intelligente des valeurs manquantes.
+    Intelligent missing value imputation.
 
-    STRATÉGIE:
-    1. Sport features (vitesses, secteurs):
-       - Imputation par MÉDIANE du groupe (circuit_key, driver_number)
-       - Rationale: Un pilote sur un circuit donné a des caractéristiques stables
-       - Fallback: Médiane globale si groupe trop petit
+    STRATEGY:
+    1. Sport features (speeds, sectors):
+       - Imputation by group MEDIAN (circuit_key, driver_number)
+       - Rationale: A driver on a given circuit has stable characteristics
+       - Fallback: Global median if group too small
 
     2. Weather features (prcp, cldc):
-       - Forward fill temporel (par session_key + lap_number)
-       - Rationale: La météo change graduellement dans une session
-       - Fallback: Médiane globale
+       - Temporal forward fill (by session_key + lap_number)
+       - Rationale: Weather changes gradually within a session
+       - Fallback: Global median
 
-    3. Autres: Médiane globale
+    3. Others: Global median
 
-    JUSTIFICATION vs autres méthodes:
-    - ❌ Suppression lignes → Perte de 16% des données (12,000 laps)
-    - ❌ Suppression features → Perte de prédicteurs forts (vitesses)
-    - ❌ Imputation globale simple → Ignore le contexte circuit/pilote
-    - ✅ Imputation par groupe → Conserve les patterns réels
+    JUSTIFICATION vs other methods:
+    - Row deletion: Loss of 16% of data (12,000 laps)
+    - Feature deletion: Loss of strong predictors (speeds)
+    - Simple global imputation: Ignores circuit/driver context
+    - Group imputation: Preserves real patterns
     """
     df = df.copy()
     initial_nulls = df.isnull().sum().sum()
@@ -90,14 +90,14 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
 
     for feat in weather_features:
         if df[feat].isnull().any():
-            # Forward fill par session (les conditions météo persistent)
+            # Forward fill by session (weather conditions persist)
             df = df.sort_values(['session_key', 'lap_number'])
             df[feat] = df.groupby('session_key')[feat].ffill()
-            # Fallback: médiane globale
+            # Fallback: global median
             df[feat].fillna(df[feat].median(), inplace=True)
             log(f"  {feat}: Forward-filled by session + global median")
 
-    # 3. Autres features numériques: médiane globale
+    # 3. Other numeric features: global median
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     for col in numeric_cols:
         if df[col].isnull().any():
@@ -111,61 +111,61 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
 
 def create_derived_features(df: pd.DataFrame, train_mask: pd.Series) -> pd.DataFrame:
     """
-    Création de features dérivées PRÉDICTIVES.
+    Creation of PREDICTIVE derived features.
 
-    IMPORTANT: Ces features doivent être calculables AVANT le tour,
-    donc PAS basées sur les temps secteurs du tour en cours.
+    IMPORTANT: These features must be calculable BEFORE the lap,
+    so NOT based on sector times of the current lap.
 
-    FEATURES CRÉÉES:
+    CREATED FEATURES:
 
-    1. avg_speed: Vitesse moyenne historique (st_speed + i1_speed + i2_speed) / 3
-       → Indicateur de performance globale
+    1. avg_speed: Historical average speed (st_speed + i1_speed + i2_speed) / 3
+       - Global performance indicator
 
-    2. lap_progress: lap_number / max_lap_number (par session)
-       → Progression dans la session (0-1)
-       → Capture dégradation pneus + évolution conditions
+    2. lap_progress: lap_number / max_lap_number (per session)
+       - Progress in session (0-1)
+       - Captures tire degradation + evolving conditions
 
-    3. driver_perf_score: Score de performance du pilote
-       → Basé sur la différence entre le temps du pilote et le temps moyen circuit
-       → Calculé sur le TRAIN SET uniquement (pas de data leakage)
-       → Score négatif = pilote plus rapide que la moyenne
+    3. driver_perf_score: Driver performance score
+       - Based on difference between driver time and circuit average time
+       - Calculated on TRAIN SET only (no data leakage)
+       - Negative score = driver faster than average
 
     Args:
-        df: DataFrame avec les données brutes
-        train_mask: Masque booléen pour le train set (éviter data leakage)
+        df: DataFrame with raw data
+        train_mask: Boolean mask for train set (avoid data leakage)
 
-    EXCLUS (car données du tour en cours):
-    - total_sector_time (= lap_duration quasi directement)
-    - sector_1_ratio, sector_2_ratio (basés sur secteurs du tour)
-    - weather_severity (impact faible selon feature importance)
+    EXCLUDED (current lap data):
+    - total_sector_time (almost directly lap_duration)
+    - sector_1_ratio, sector_2_ratio (based on lap sectors)
+    - weather_severity (low impact per feature importance)
     """
     df = df.copy()
     log("Creating derived features (predictive only)...")
 
-    # 1. Vitesse moyenne (indicateur de performance, pas de temps direct)
+    # 1. Average speed (performance indicator, not direct time)
     df['avg_speed'] = (df['st_speed'] + df['i1_speed'] + df['i2_speed']) / 3
     log("  avg_speed: Average of 3 speed measurements")
 
-    # 2. Progression session (0-1 scale)
+    # 2. Session progress (0-1 scale)
     df['lap_progress'] = df.groupby('session_key')['lap_number'].transform(
         lambda x: x / x.max()
     )
     log("  lap_progress: Position in session (tire degradation)")
 
     # 3. Driver Performance Score
-    # Calculé comme: temps moyen du pilote - temps moyen du circuit
-    # Un score négatif = pilote plus rapide que la moyenne
-    # ⚠️ Calculé UNIQUEMENT sur train set pour éviter data leakage
+    # Calculated as: driver average time - circuit average time
+    # Negative score = driver faster than average
+    # Calculated on TRAIN SET only to avoid data leakage
 
-    # D'abord calculer les moyennes par circuit (sur train)
+    # First calculate circuit means (on train)
     circuit_means = df.loc[train_mask].groupby('circuit_key')['lap_duration'].mean()
 
-    # Ensuite calculer les moyennes par pilote par circuit (sur train)
+    # Then calculate driver-circuit means (on train)
     driver_circuit_means = df.loc[train_mask].groupby(
         ['driver_number', 'circuit_key']
     )['lap_duration'].mean()
 
-    # Créer le score de performance
+    # Create performance score
     def calc_driver_perf(row):
         driver = row['driver_number']
         circuit = row['circuit_key']
@@ -174,12 +174,12 @@ def create_derived_features(df: pd.DataFrame, train_mask: pd.Series) -> pd.DataF
         if (driver, circuit) in driver_circuit_means.index:
             driver_avg = driver_circuit_means[(driver, circuit)]
         else:
-            # Pilote inconnu sur ce circuit: utiliser sa moyenne globale
+            # Unknown driver on this circuit: use global average
             driver_global = df.loc[
                 train_mask & (df['driver_number'] == driver), 'lap_duration'
             ].mean()
             if pd.isna(driver_global):
-                driver_avg = circuit_avg  # Fallback: neutre
+                driver_avg = circuit_avg  # Fallback: neutral
             else:
                 driver_avg = driver_global
 
@@ -259,7 +259,7 @@ def target_encode_categorical(
 
         log(f"  {col} -> {new_col} (mean lap_duration per category)")
 
-    # Garder aussi les colonnes catégorielles originales pour XGBoost
+    # Garder ausif les colonnes catégorielles originales for XGBoost
     # (XGBoost peut utiliser enable_categorical=True)
     # On aura donc: circuit_key (catégoriel) ET circuit_avg_laptime (numérique)
     for col in categorical_cols:
@@ -352,7 +352,7 @@ def prepare_train_test_split_stratified(
     log(f"Test:  {len(X_test):,} samples ({len(X_test)/len(df)*100:.1f}%)")
     log(f"Features: {len(feature_cols)}")
 
-    # Vérifier la distribution des années
+    # Checkr la distribution des années
     train_years = df.loc[X_train.index, 'year'].value_counts().sort_index()
     test_years = df.loc[X_test.index, 'year'].value_counts().sort_index()
     log(f"Train years distribution: {train_years.to_dict()}")
@@ -380,7 +380,7 @@ def preprocess_pipeline(dataset_path: Path, train_years: list[int] = None, test_
     """
     from ml.config import SPLIT_STRATEGY, TEST_SIZE, STRATIFY_BY, TRAIN_YEARS, TEST_YEAR, RANDOM_STATE
 
-    # Valeurs par défaut depuis config
+    # Valeurs par défaut from config
     if train_years is None:
         train_years = TRAIN_YEARS
     if test_year is None:
@@ -397,8 +397,8 @@ def preprocess_pipeline(dataset_path: Path, train_years: list[int] = None, test_
     # 2. Handle missing values
     df = handle_missing_values(df)
 
-    # 3. Définir le masque train pour les encodages
-    # Pour le split stratifié, on utilise 80% des données pour l'encodage
+    # 3. Définir le masque train for les encodages
+    # Pour le split stratifié, on utilise 80% des data for l'encodage
     if SPLIT_STRATEGY == "stratified":
         # Pour l'encodage, on utilise un sample aléatoire de 80%
         from sklearn.model_selection import train_test_split
@@ -418,7 +418,7 @@ def preprocess_pipeline(dataset_path: Path, train_years: list[int] = None, test_
         target_col='lap_duration'
     )
 
-    # 5. Create derived features (utilise train_mask pour éviter leakage)
+    # 5. Create derived features (utilise train_mask for éviter leakage)
     df = create_derived_features(df, train_mask)
 
     # 6. Split train/test selon la stratégie

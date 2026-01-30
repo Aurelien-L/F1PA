@@ -1,10 +1,10 @@
 """
 F1PA - Run Complete ML Pipeline
 
-Script tout-en-un pour exécuter l'ensemble du pipeline ML:
+Script tout-en-un for executer l'ensemble du pipeline ML:
 1. Vérification des prérequis
-2. Entraînement des modèles
-3. Affichage des résultats
+2. Entraînement des models
+3. Affichage des results
 4. Guide d'utilisation
 
 Usage:
@@ -36,7 +36,7 @@ def log(msg: str, level: str = "INFO") -> None:
 
 
 def check_dataset() -> bool:
-    """Vérifie que le dataset existe."""
+    """Check que le dataset existe."""
     dataset_path = Path("data/processed/dataset_ml_lap_level_2023_2024_2025.csv")
     if dataset_path.exists():
         log(f"Dataset found: {dataset_path}", "SUCCESS")
@@ -48,7 +48,7 @@ def check_dataset() -> bool:
 
 
 def check_mlflow() -> bool:
-    """Vérifie que MLflow est démarré."""
+    """Check que MLflow est démarré."""
     try:
         req = urllib.request.Request("http://localhost:5000/health", method='GET')
         with urllib.request.urlopen(req, timeout=2) as response:
@@ -66,7 +66,7 @@ def check_mlflow() -> bool:
 
 
 def run_training() -> bool:
-    """Lance l'entraînement des modèles."""
+    """Lance l'entraînement des models."""
     log("Starting ML training pipeline...", "STEP")
     log("This will take 5-10 minutes (4 models + GridSearch)", "INFO")
     print()
@@ -91,7 +91,7 @@ def run_training() -> bool:
 
 
 def show_results() -> None:
-    """Affiche les résultats et instructions."""
+    """Affiche les results et instructions."""
     log("=" * 80, "INFO")
     log("TRAINING COMPLETE - NEXT STEPS", "SUCCESS")
     log("=" * 80, "INFO")

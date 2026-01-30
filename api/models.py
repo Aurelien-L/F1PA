@@ -15,11 +15,11 @@ class LapFeatures(BaseModel):
     """
     Input features for lap time PERFORMANCE prediction.
 
-    OBJECTIF: Prédire le temps au tour d'un pilote AVANT qu'il roule,
-    basé sur sa performance historique et les conditions.
+    OBJECTIVE: Predict a driver's lap time BEFORE they drive,
+    based on their historical performance and conditions.
 
-    NOTE: Les temps secteurs ne sont PAS utilisés car ils représentent
-    des données du tour en cours (ce serait trivial: lap_time ≈ sum(sectors)).
+    NOTE: Sector times are NOT used as they represent
+    current lap data (it would be trivial: lap_time ≈ sum(sectors)).
     """
 
     # Driver identification

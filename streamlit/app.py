@@ -4,14 +4,16 @@ Streamlit Dashboard
 
 Interface for lap time predictions using the F1PA ML model.
 """
+# pylint: disable=no-member
+# Streamlit uses dynamic member generation, pylint cannot infer them
 import streamlit as st
 import requests
 from requests.auth import HTTPBasicAuth
 import pandas as pd
 
-from config import (
+from config import (  # pylint: disable=import-error
     API_BASE_URL, API_EXTERNAL_URL, API_USERNAME, API_PASSWORD,
-    MLFLOW_URL, GITHUB_URL, EVIDENTLY_URL,
+    MLFLOW_URL, GRAFANA_URL, GITHUB_URL,
     DEFAULT_TEMP, DEFAULT_RHUM, DEFAULT_PRES,
     DEFAULT_LAP_NUMBER, DEFAULT_YEAR,
     SPEED_MIN, SPEED_MAX,
@@ -699,11 +701,13 @@ def render_links_tab():
         st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown(f"""
-        <div class="link-card" style="opacity: 0.5;">
-            <h3 style="color: #666666; margin: 0;">📈 Evidently</h3>
-            <p style="color: #666666;">Data Drift Monitoring (Coming Soon)</p>
-            <p style="color: #444444; font-size: 0.8rem;">{EVIDENTLY_URL}</p>
-        </div>
+        <a href="{GRAFANA_URL}" target="_blank" style="text-decoration: none;">
+            <div class="link-card">
+                <h3 style="color: #E10600; margin: 0;">📈 Grafana</h3>
+                <p style="color: #AAAAAA;">ML Model Monitoring Dashboard</p>
+                <p style="color: #666666; font-size: 0.8rem;">{GRAFANA_URL}</p>
+            </div>
+        </a>
         """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)

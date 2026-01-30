@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 @pytest.fixture(scope="session")
 def check_services():
-    """Fixture: vérifier que les services Docker sont UP avant les tests"""
+    """Fixture: checkr que les services Docker sont UP avant les tests"""
     services = {
         "API": "http://localhost:8000/docs",
         "PostgreSQL": "http://localhost:8000/data/drivers",  # Via API
@@ -45,7 +45,7 @@ def check_services():
 
 @pytest.fixture
 def sample_features():
-    """Fixture: features pour test de prédiction"""
+    """Fixture: features for test de prediction"""
     return {
         "driver_number": 1,
         "circuit_key": 9,
