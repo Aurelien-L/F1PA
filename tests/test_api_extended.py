@@ -10,6 +10,7 @@ def base_url():
     """Base URL of the API"""
     return "http://localhost:8000"
 
+@pytest.mark.integration
 def test_services_are_up(check_services):
     """Test: check that required services are UP"""
     assert check_services is True
@@ -18,6 +19,7 @@ def test_services_are_up(check_services):
 # Tests endpoints /data/*
 # ============================================================================
 
+@pytest.mark.integration
 def test_drivers_list_complete(base_url, api_credentials):
     """Test: complete and well-structured drivers list"""
     response = requests.get(
@@ -44,6 +46,7 @@ def test_drivers_list_complete(base_url, api_credentials):
     assert "headshot_url" in driver
     assert "team_colour" in driver
 
+@pytest.mark.integration
 def test_circuits_list_complete(base_url, api_credentials):
     """Test: complete and well-structured circuits list"""
     response = requests.get(
@@ -62,6 +65,7 @@ def test_circuits_list_complete(base_url, api_credentials):
     for field in required_fields:
         assert field in circuit
 
+@pytest.mark.integration
 def test_prediction_lap_valid(base_url, api_credentials, sample_features):
     """Test: prediction with features valid return result consistent"""
     response = requests.post(
@@ -93,6 +97,7 @@ def test_prediction_lap_valid(base_url, api_credentials, sample_features):
     assert "source" in model_info
     assert model_info["source"] == "mlflow"  # Doit venir de MLflow
 
+@pytest.mark.integration
 def test_prediction_batch(base_url, api_credentials, sample_features):
     """Test: prediction en batch fonctionne"""
     # Créer 3 prédictions différentes
@@ -118,6 +123,7 @@ def test_prediction_batch(base_url, api_credentials, sample_features):
         assert isinstance(pred_time, (int, float))
         assert 50 < pred_time < 200
 
+@pytest.mark.integration
 def test_model_info_complete(base_url, api_credentials):
     """Test: endpoint /predict/model return infos complètes"""
     response = requests.get(

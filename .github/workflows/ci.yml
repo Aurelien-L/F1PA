@@ -88,7 +88,7 @@ jobs:
           POSTGRES_USER: f1pa
           POSTGRES_PASSWORD: f1pa
         run: |
-          pytest tests/ -v --cov=. --cov-report=term-missing
+          pytest tests/ -v --cov=. --cov-report=term-missing -m "not integration"
 
   build:
     name: Build Docker Images

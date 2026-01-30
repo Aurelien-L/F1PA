@@ -153,8 +153,14 @@ pylint --rcfile=pyproject.toml api/main.py
 ### Tests unitaires
 
 ```bash
-# Lancer tous les tests
+# Lancer tous les tests (unit + integration)
 pytest tests/ -v
+
+# Lancer uniquement les tests unitaires (sans services Docker)
+pytest tests/ -v -m "not integration"
+
+# Lancer uniquement les tests d'intégration (nécessite docker compose up -d)
+pytest tests/ -v -m "integration"
 
 # Avec coverage
 pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=html
@@ -166,7 +172,12 @@ pytest tests/test_api.py -v
 pytest tests/test_api.py::test_health_endpoint -v
 ```
 
-**Tests attendus** : 40 tests, 100% de pass
+**Tests disponibles** :
+- 29 tests unitaires (peuvent tourner sans services Docker)
+- 11 tests d'intégration (nécessitent `docker compose up -d`)
+- Total : 40 tests, 100% de pass
+
+**Note** : Les tests d'intégration sont automatiquement exclus du pipeline GitHub Actions pour garder le CI/CD simple et rapide.
 
 ### Pipeline CI/CD local
 
@@ -176,14 +187,15 @@ Simuler le pipeline GitHub Actions en local avant de push :
 # 1. Lint
 pylint --rcfile=pyproject.toml api/ ml/ etl/ monitoring/ streamlit/ tests/ scripts/
 
-# 2. Tests
-pytest tests/ -v --cov
+# 2. Tests (uniquement tests unitaires comme en CI)
+pytest tests/ -v --cov -m "not integration"
 
-# 3. Build Docker
-docker compose build
-
-# 4. Démarrer services
+# 3. Tests complets (unit + integration, nécessite docker compose)
 docker compose up -d
+pytest tests/ -v --cov  # Tous les tests
+
+# 4. Build Docker
+docker compose build
 
 # 5. Vérifier santé
 docker compose ps
@@ -200,7 +212,8 @@ curl -u f1pa:f1pa http://localhost:8000/health
 Push → Lint → Tests → Build → Deploy
        ↓      ↓       ↓
     pylint  pytest  docker
-           40 tests  images
+           29 unit   images
+           tests
 ```
 
 ### Workflows automatiques
@@ -213,7 +226,8 @@ Déclenché sur :
 
 Étapes :
 1. **Lint** : Vérification code avec pylint
-2. **Tests** : Exécution pytest + coverage (avec PostgreSQL)
+2. **Tests** : Exécution pytest + coverage (29 tests unitaires, PostgreSQL service uniquement)
+   - Tests d'intégration exclus pour garder le CI/CD simple et rapide
 3. **Build** : Construction images Docker (uniquement sur main/dev)
 
 **`.github/workflows/release.yml`** - Workflow de release

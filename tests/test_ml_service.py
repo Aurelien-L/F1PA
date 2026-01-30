@@ -10,6 +10,7 @@ def api_url():
     """URL de l'API réelle"""
     return "http://localhost:8000"
 
+@pytest.mark.integration
 def test_model_is_loaded_from_mlflow(api_url, api_credentials):
     """Test: le model est chargé from MLflow via l'API"""
     response = requests.get(
@@ -24,6 +25,7 @@ def test_model_is_loaded_from_mlflow(api_url, api_credentials):
     assert model_info["run_id"] is not None
     assert model_info["run_name"] is not None
 
+@pytest.mark.integration
 def test_model_has_complete_metrics(api_url, api_credentials):
     """Test: le model a toutes les métriques"""
     response = requests.get(
@@ -43,6 +45,7 @@ def test_model_has_complete_metrics(api_url, api_credentials):
     assert 0 < model_info["test_mae"] < 5
     assert 0.5 < model_info["test_r2"] < 1
 
+@pytest.mark.integration
 def test_prediction_returns_valid_time(api_url, api_credentials, sample_features):
     """Test: prediction return un time consistent"""
     response = requests.post(
@@ -57,6 +60,7 @@ def test_prediction_returns_valid_time(api_url, api_credentials, sample_features
     lap_time = data["lap_duration_seconds"]
     assert 50 < lap_time < 200, f"Temps incohérent: {lap_time}s"
 
+@pytest.mark.integration
 def test_predictions_are_deterministic(api_url, api_credentials, sample_features):
     """Test: même input = même output"""
     # Faire 2 predictions identiques
@@ -80,6 +84,7 @@ def test_predictions_are_deterministic(api_url, api_credentials, sample_features
     # Les time doivent être identiques
     assert abs(time1 - time2) < 0.001, "Les predictions devraient être déterministes"
 
+@pytest.mark.integration
 def test_different_drivers_different_predictions(api_url, api_credentials, sample_features):
     """Test: pilotes différents = time différents"""
     features_ver = sample_features.copy()
