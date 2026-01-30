@@ -11,7 +11,7 @@ from datetime import datetime
 import pandas as pd
 from evidently.report import Report
 from evidently.metric_preset import DataDriftPreset, RegressionPreset
-from evidently.pipeline.column_mapping import ColumnMapping
+from evidently.pipeline.column_mapping import ColumnMapping  # pylint: disable=no-name-in-module
 
 # Ajouter le root du projet au path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

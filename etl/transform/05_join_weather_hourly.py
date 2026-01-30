@@ -298,7 +298,6 @@ def main() -> int:
                     n_out=0,
                     circuit_key=None,
                     wikipedia_circuit_url=None,
-                    circuit_id=None,
                     station_id=None,
                     n_missing_station=0,
                     n_missing_weather=0,

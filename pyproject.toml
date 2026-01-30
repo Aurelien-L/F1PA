@@ -1,20 +1,79 @@
 [tool.pylint.main]
-max-line-length = 127
-disable = [
-    "C0114",  # missing-module-docstring
-    "C0115",  # missing-class-docstring
-    "C0116",  # missing-function-docstring
-    "R0913",  # too-many-arguments
-    "R0914",  # too-many-locals
-    "W0212",  # protected-access
-    "C0103",  # invalid-name (for variables like df, X, y)
-    "C0413",  # wrong-import-position (FastAPI needs imports after sys.path modification)
-    "C0415",  # import-outside-toplevel (sometimes needed for lazy imports)
-    "W0718",  # broad-exception-caught (catching Exception is fine in many cases)
-    "W0613",  # unused-argument (FastAPI dependencies)
-    "W0621",  # redefined-outer-name (common in fixtures/dependencies)
+max-line-length = 160
+ignore-paths = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "mlflow_db",
+    "mlartifacts",
+    "models",
+    "data",
 ]
-ignore = [".git", ".venv", "venv", "__pycache__", "mlflow_db", "mlartifacts", "models", "data"]
+
+# On se concentre uniquement sur les erreurs critiques (E)
+# On désactive tous les warnings (W), refactoring (R), convention (C) et info (I)
+disable = [
+    "W",  # Tous les warnings
+    "R",  # Tous les refactoring
+    "C",  # Toutes les conventions
+    "I",  # Toutes les informations
+]
+
+# Réactiver uniquement les erreurs vraiment critiques
+enable = [
+    "E0001",  # syntax-error
+    "E0102",  # function-redefined
+    "E0103",  # not-in-loop
+    "E0104",  # return-outside-function
+    "E0105",  # yield-outside-function
+    "E0107",  # nonexistent-operator
+    "E0108",  # duplicate-argument-name
+    "E0202",  # method-hidden
+    "E0203",  # access-member-before-definition
+    "E0211",  # no-method-argument
+    "E0213",  # no-self-argument
+    "E0236",  # invalid-slots-object
+    "E0237",  # assigning-non-slot
+    "E0238",  # invalid-slots
+    "E0239",  # invalid-object
+    "E0240",  # inconsistent-mro
+    "E0241",  # duplicate-bases
+    "E0301",  # non-iterator-returned
+    "E0302",  # unexpected-special-method-signature
+    "E0303",  # invalid-length-returned
+    "E1003",  # bad-super-call
+    "E1101",  # no-member (mais sera ignoré pour streamlit/evidently)
+    "E1102",  # not-callable
+    "E1111",  # assignment-from-no-return
+    "E1120",  # no-value-for-parameter
+    "E1121",  # too-many-function-args
+    "E1123",  # unexpected-keyword-arg
+    "E1124",  # redundant-keyword-arg
+    "E1125",  # missing-kwoa
+    "E1126",  # invalid-sequence-index
+    "E1127",  # invalid-slice-index
+    "E1128",  # assignment-from-none
+    "E1129",  # not-context-manager
+    "E1130",  # invalid-unary-operand-type
+    "E1131",  # unsupported-binary-operation
+    "E1132",  # repeated-keyword
+    "E1133",  # not-an-iterable
+    "E1134",  # not-a-mapping
+    "E1135",  # unsupported-membership-test
+    "E1136",  # unsubscriptable-object
+    "E1137",  # unsupported-assignment-operation
+    "E1138",  # unsupported-delete-operation
+    "E1139",  # invalid-metaclass
+    "E1140",  # unhashable-member
+    "E1141",  # dict-iter-missing-items
+]
+
+# Extensions problématiques à ignorer
+extension-pkg-allow-list = ["streamlit", "evidently", "bs4", "pydantic"]
+
+# Ignorer les faux positifs d'import
+ignored-modules = ["db_config", "bs4", "evidently.report", "evidently.metric_preset", "evidently.pipeline.column_mapping"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

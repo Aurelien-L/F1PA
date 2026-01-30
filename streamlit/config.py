@@ -15,8 +15,8 @@ API_EXTERNAL_URL = os.getenv("API_EXTERNAL_URL", "http://localhost:8000")
 
 # External Links
 MLFLOW_URL = os.getenv("MLFLOW_URL", "http://localhost:5000")
+GRAFANA_URL = os.getenv("GRAFANA_URL", "http://localhost:3000")
 GITHUB_URL = "https://github.com/Aurelien-L/F1PA"
-EVIDENTLY_URL = os.getenv("EVIDENTLY_URL", "http://localhost:8080")  # Placeholder
 
 # Default values for prediction
 DEFAULT_TEMP = 25.0
