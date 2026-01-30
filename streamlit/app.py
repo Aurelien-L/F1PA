@@ -4,12 +4,14 @@ Streamlit Dashboard
 
 Interface for lap time predictions using the F1PA ML model.
 """
+# pylint: disable=no-member
+# Streamlit uses dynamic member generation, pylint cannot infer them
 import streamlit as st
 import requests
 from requests.auth import HTTPBasicAuth
 import pandas as pd
 
-from config import (
+from config import (  # pylint: disable=import-error
     API_BASE_URL, API_EXTERNAL_URL, API_USERNAME, API_PASSWORD,
     MLFLOW_URL, GRAFANA_URL, GITHUB_URL,
     DEFAULT_TEMP, DEFAULT_RHUM, DEFAULT_PRES,
