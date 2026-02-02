@@ -120,7 +120,7 @@ F1PA/
 ├── api/                 # FastAPI REST (endpoints + auth)
 ├── streamlit/           # Interface utilisateur
 ├── monitoring/          # Evidently (drift detection)
-├── tests/               # 40 tests unitaires (pytest)
+├── tests/               # 54 tests (43 unitaires + 11 intégration)
 │
 ├── scripts/             # Scripts utilitaires (ETL, monitoring, déploiement)
 ├── .github/workflows/   # CI/CD GitHub Actions
@@ -159,8 +159,19 @@ F1PA/
 **Modèle** : Random Forest (GridSearchCV)
 - **MAE** : 1.07s
 - **R²** : 0.75
-- **MAPE** : 0.86 → explicable par contexte  
+- **MAPE** : 0.86 → explicable par contexte
 - **Tracking** : MLflow (hyperparamètres, métriques, feature importance)
+
+### Scalabilité Big Data
+
+**Architecture actuelle** : PostgreSQL 15 (adapté pour ~71k laps)
+
+**Scale-up pour volumes > 10M rows** :
+- **Apache Spark SQL** : Requêtes distribuées sur clusters Hadoop/HDFS
+- **Apache Hive** : Data warehouse SQL sur Big Data avec partitionnement
+- **Presto/Trino** : Requêtes SQL temps réel sur data lakes (S3, HDFS)
+
+Le projet est conçu pour faciliter la migration : les requêtes SQL PostgreSQL sont compatibles Spark SQL avec adaptations mineures (types de données, fonctions de fenêtrage).
 
 ---
 
@@ -225,6 +236,9 @@ docker exec f1pa_api python scripts/generate_drift_report.py
 **API Documentation** :
 - Swagger UI : [http://localhost:8000/docs](http://localhost:8000/docs)
 - Endpoints : `/predict/lap`, `/data/drivers`, `/data/circuits`
+- **Authentification** :
+  - Dev/Démo : HTTP Basic Auth (username/password)
+  - Production recommandée : JWT/OAuth2 pour sécurité renforcée
 
 ---
 
