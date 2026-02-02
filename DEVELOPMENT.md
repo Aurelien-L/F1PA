@@ -173,11 +173,30 @@ pytest tests/test_api.py::test_health_endpoint -v
 ```
 
 **Tests disponibles** :
-- 29 tests unitaires (peuvent tourner sans services Docker)
-- 11 tests d'intégration (nécessitent `docker compose up -d`)
-- Total : 40 tests, 100% de pass
+- **43 tests unitaires** (peuvent tourner sans services Docker ni données) :
+  - 11 tests API (`test_api.py`)
+  - 7 tests API étendus (`test_api_extended.py`)
+  - 4 tests configuration (`test_config.py`)
+  - 14 tests validation données (`test_data_validation.py`) - Nouveaux ! ✨
+  - 7 tests preprocessing (`test_preprocessing.py`)
+- **11 tests d'intégration** (nécessitent `docker compose up -d`) :
+  - 6 tests API complète (`test_api_extended.py`)
+  - 5 tests service ML (`test_ml_service.py`)
+- **Total** : 54 tests, 100% de pass
 
 **Note** : Les tests d'intégration sont automatiquement exclus du pipeline GitHub Actions pour garder le CI/CD simple et rapide.
+
+**Tests de validation données** (`test_data_validation.py`) :
+- Schéma dataset ML (colonnes requises)
+- Ranges vitesses F1 (20-380 km/h)
+- Ranges lap times (50-1200s, détection outliers > 300s)
+- NaN limités (< 1% target, < 10-20% features)
+- Cohérence secteurs (somme ≈ lap_duration)
+- Cohérence météo (température, pression, humidité)
+- Unicité laps (pas de duplicates)
+- Séquentialité numéros de tours
+
+**Stratégie outliers** : L'ETL supprime les outliers par quantiles per-session (Q0.01-Q0.99, 1534 laps supprimés). Les tests détectent les outliers extrêmes restants (< 0.1%, typiquement sessions à incidents). Random Forest est robuste à ces cas rares.
 
 ### Pipeline CI/CD local
 
@@ -245,6 +264,40 @@ git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 
 # Le workflow release.yml se déclenche automatiquement
+```
+
+### Stratégie de déploiement
+
+**Déploiement actuel** :
+- ✅ **Build Docker automatique** : Images construites automatiquement sur push `main`/`dev`
+- ⏸️ **Déploiement manuel** : Via script `scripts/deploy.sh`
+- 💡 **Choix volontaire** : Éviter déploiements accidentels pendant le développement
+
+**Avantages déploiement manuel** :
+- Contrôle total sur le timing du déploiement
+- Validation manuelle avant mise en production
+- Évite les déploiements non testés en environnement dev
+
+**Migration vers déploiement automatique** (pour production) :
+
+1. Décommenter la section deploy dans `.github/workflows/ci.yml` (lignes 127-142)
+2. Configurer les secrets GitHub :
+   ```bash
+   # Settings → Secrets → Actions → New repository secret
+   SSH_PRIVATE_KEY: <clé SSH serveur de production>
+   SERVER_HOST: <IP ou domaine du serveur>
+   SERVER_USER: <utilisateur SSH>
+   ```
+3. Le déploiement se déclenchera automatiquement après build réussi sur `main`
+
+**Script de déploiement manuel** :
+
+```bash
+# Déployer sur serveur distant
+./scripts/deploy.sh
+
+# Avec variables d'environnement
+SERVER_HOST=prod.example.com SERVER_USER=deployer ./scripts/deploy.sh
 ```
 
 ### Activer le déploiement automatique
