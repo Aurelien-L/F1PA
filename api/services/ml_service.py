@@ -12,6 +12,8 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from api.services.db_service import db_service
+
 
 class MLService:
     """Service for ML model management and predictions."""
@@ -122,26 +124,23 @@ class MLService:
 
         Transforms raw input features into the format expected by the model.
 
-        IMPORTANT: Ce modèle prédit la PERFORMANCE (temps au tour AVANT le tour),
-        donc il n'utilise PAS les temps secteurs (qui sont des données du tour en cours).
+        IMPORTANT: Predicts lap time BEFORE the lap (no sector times used).
 
-        Features utilisées (15 total, dans l'ordre du modèle):
+        Features (15 total, must match training order):
         - Context: year, circuit_key, driver_number, lap_number
-        - Vitesses: st_speed, i1_speed, i2_speed
-        - Météo: temp, rhum, pres
-        - Performance encodings: circuit_avg_laptime, driver_avg_laptime
+        - Speeds: st_speed, i1_speed, i2_speed
+        - Weather: temp, rhum, pres
+        - Performance: circuit_avg_laptime, driver_avg_laptime
         - Derived: avg_speed, lap_progress, driver_perf_score
         """
-        # Calculate derived features
         avg_speed = (features["st_speed"] + features["i1_speed"] + features["i2_speed"]) / 3
 
-        # Lap progress (normalized lap number, assuming ~70 laps max)
-        lap_progress = min(features["lap_number"] / 70.0, 1.0)
+        # Dynamic lap progress from circuit typical max_lap
+        circuit_key = int(features["circuit_key"])
+        max_lap = db_service.get_circuit_typical_max_lap(circuit_key)
+        lap_progress = min(features["lap_number"] / float(max_lap), 1.0)
 
-        # Feature vector in expected order (must match ml/preprocessing.py output)
-        # Order: year, circuit_key, driver_number, lap_number, st_speed, i1_speed, i2_speed,
-        #        temp, rhum, pres, circuit_avg_laptime, driver_avg_laptime,
-        #        avg_speed, lap_progress, driver_perf_score
+        # Feature vector (must match ml/preprocessing.py output order)
         feature_vector = [
             features["year"],
             features["circuit_key"],

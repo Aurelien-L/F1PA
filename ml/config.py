@@ -81,24 +81,22 @@ DERIVED_FEATURES = [
 # Target
 TARGET = 'lap_duration'
 
-# GridSearch: Grilles de paramètres (Version 3.1 - optimisée pour vitesse)
-# XGBoost: grille large car rapide à entraîner
-# Random Forest: grille réduite car lent (focus sur les meilleurs paramètres)
+# GridSearch hyperparameter grids (optimized for model size and training speed)
 GRIDSEARCH_PARAMS = {
     'xgboost': {
-        'n_estimators': [100, 200, 300],    # 3 valeurs
-        'max_depth': [7, 10],               # 2 valeurs (best=10)
-        'learning_rate': [0.05, 0.1],       # 2 valeurs (best=0.05)
-        'min_child_weight': [1, 3],         # 2 valeurs (best=1)
-        'gamma': [0, 0.1],                  # 2 valeurs (best=0.1)
-    },  # Total: 3×2×2×2×2 = 48 combinaisons
+        'n_estimators': [100, 200, 300],
+        'max_depth': [7, 10],
+        'learning_rate': [0.05, 0.1],
+        'min_child_weight': [1, 3],
+        'gamma': [0, 0.1],
+    },  # 48 combinations
     'random_forest': {
-        'n_estimators': [200, 300],         # 2 valeurs (baseline=300)
-        'max_depth': [15, None],            # 2 valeurs (baseline=15)
-        'min_samples_split': [2, 5],        # 2 valeurs (baseline=5)
-        'min_samples_leaf': [1, 2],         # 2 valeurs (baseline=2)
-        'max_features': ['sqrt', 0.7],      # 2 valeurs
-    }  # Total: 2×2×2×2×2 = 32 combinaisons
+        'n_estimators': [150, 200],         # Optimized for ~450 MB model size
+        'max_depth': [15, 20],              # Limited depth prevents overfitting
+        'min_samples_split': [2, 5],
+        'min_samples_leaf': [1, 2],
+        'max_features': ['sqrt', 0.7],
+    }  # 32 combinations
 }
 
 # Paramètres fixes (communs à toutes les combinaisons GridSearch)

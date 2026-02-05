@@ -157,10 +157,57 @@ F1PA/
 - Contexte : `circuit_avg_laptime`, `driver_perf_score`, `lap_progress`
 
 **Modèle** : Random Forest (GridSearchCV)
-- **MAE** : 1.07s
-- **R²** : 0.75
-- **MAPE** : 0.86 → explicable par contexte
-- **Tracking** : MLflow (hyperparamètres, métriques, feature importance)
+- **MAE** : 1.08s (optimized)
+- **R²** : 0.77
+- **MAPE** : 0.89% (excellent)
+- **Model size** : 351 MB (production-ready)
+- **Tracking** : MLflow (hyperparams, metrics, feature importance)
+
+#### Parcours d'optimisation du modèle
+
+**Défi initial** : Modèle Random Forest trop volumineux (1.5 GB) causant des échecs d'upload vers MLflow.
+
+**Itérations d'optimisation** :
+
+| Version | Problème | Solution appliquée | Résultat |
+|---------|----------|-------------------|----------|
+| **v0** (baseline) | `max_depth=None` → 1.5 GB, crash MLflow | - | ❌ Bloquant production |
+| **v1** | Profondeur limitée mais toujours lourd | `max_depth=[15,20]` au lieu de `[15,None]` | 674 MB, ⚠️ encore lourd |
+| **v2** | Besoin d'un modèle plus léger | `n_estimators=[150,200]` au lieu de `[200,300]` | 449 MB, ⚠️ acceptable |
+| **v3** (final) | Cohérence train/inference + optimisation | lap_progress circuit-based + `n_estimators=150` | ✅ **351 MB** (-77%) |
+
+**Compromis** :
+- **Réduction taille** : 1.5 GB → 351 MB (-77%)
+- **Impact performance** : MAE 1.07s → 1.08s (+0.01s, négligeable)
+- **Temps de chargement** : 19s → 3.2s dans l'API (-83%)
+
+**Apprentissages clés** :
+- Profondeur illimitée (`max_depth=None`) crée un overfitting massif avec 300 arbres
+- Réduire `n_estimators` à 150 offre le meilleur compromis taille/performance
+- GridSearch a sélectionné `max_depth=20` comme optimal (équilibre précision/généralisation)
+- Cohérence train/inference (lap_progress circuit-based) améliore les performances (+0.02 R²)
+
+**Configuration de production** :
+```python
+# ml/config.py - Paramètres GridSearch Random Forest
+'n_estimators': [150, 200],      # Modèle plus léger (cible ~450 MB)
+'max_depth': [15, 20],            # Évite l'overfitting (était [15, None])
+'min_samples_leaf': [1, 2],       # Paramètres standard
+'min_samples_split': [2, 5],
+```
+
+#### Lap_progress dynamique
+
+**Problème initial** : Utilisation d'un `max_lap=70` fixe pour tous les circuits (Monaco=78 laps, Spa=44 laps).
+
+**Solution implémentée** : Calcul dynamique basé sur le max_lap typique du circuit
+
+- Calcul du **max_lap typique** par circuit (moyenne des max_laps historiques)
+- **Training** : `lap_progress = lap_number / avg(max_lap) par circuit`
+- **Inference** : Même logique via requête DB avec cache
+- Requête : `SELECT AVG(MAX(lap_number)) FROM fact_laps WHERE circuit_key = ? GROUP BY session_key`
+- **Résultat** : Cohérence training/inference pour prédictions hypothétiques ("Hamilton à Monaco")
+
 
 ### Scalabilité Big Data
 

@@ -122,8 +122,8 @@ async def predict_batch(request: BatchPredictionRequest, username: str = Depends
     ```json
     {
         "features": [
-            {"st_speed": 310.5, "i1_speed": 295.2, ...},
-            {"st_speed": 308.2, "i1_speed": 292.1, ...}
+            {"driver_number": 1, "circuit_key": 7, "st_speed": 310.5, "i1_speed": 295.2, ...},
+            {"driver_number": 1, "circuit_key": 7, "st_speed": 308.2, "i1_speed": 292.1, ...}
         ]
     }
     ```

@@ -146,11 +146,15 @@ def create_derived_features(df: pd.DataFrame, train_mask: pd.Series) -> pd.DataF
     df['avg_speed'] = (df['st_speed'] + df['i1_speed'] + df['i2_speed']) / 3
     log("  avg_speed: Average of 3 speed measurements")
 
-    # 2. Session progress (0-1 scale)
-    df['lap_progress'] = df.groupby('session_key')['lap_number'].transform(
-        lambda x: x / x.max()
-    )
-    log("  lap_progress: Position in session (tire degradation)")
+    # 2. Circuit-based lap progress (0-1 scale)
+    # Uses typical max_lap per circuit (average across sessions)
+    # This matches inference behavior (circuit-based, not session-specific)
+    circuit_max_laps = df.groupby(['circuit_key', 'session_key'])['lap_number'].max().groupby('circuit_key').mean()
+    df['lap_progress'] = df.apply(
+        lambda row: row['lap_number'] / circuit_max_laps.get(row['circuit_key'], 70),
+        axis=1
+    ).clip(upper=1.0)
+    log("  lap_progress: Circuit-based position (typical max_lap per circuit)")
 
     # 3. Driver Performance Score
     # Calculated as: driver average time - circuit average time

@@ -9,10 +9,15 @@ import json
 import sys
 from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
+from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
+
+
+# Cache for circuit typical max_lap (circuits have stable race lengths)
+_circuit_typical_max_lap_cache: Dict[int, int] = {}
 
 
 class DBService:
@@ -432,6 +437,43 @@ class DBService:
         with self.get_connection() as conn:
             result = conn.execute(text(query))
             return result.scalar()
+
+    def get_circuit_typical_max_lap(self, circuit_key: int) -> int:
+        """
+        Get typical maximum lap number for a circuit (averaged across sessions).
+
+        Uses average of max laps across all sessions for this circuit.
+        Falls back to 70 if circuit not found or has no data.
+
+        Results are cached since circuit configurations are stable.
+        """
+        # Check cache first
+        if circuit_key in _circuit_typical_max_lap_cache:
+            return _circuit_typical_max_lap_cache[circuit_key]
+
+        # Query: average of max laps per session for this circuit
+        query = f"""
+            SELECT ROUND(AVG(max_laps))::int
+            FROM (
+                SELECT MAX(lap_number) as max_laps
+                FROM fact_laps
+                WHERE circuit_key = {circuit_key}
+                GROUP BY session_key
+            ) subquery
+        """
+
+        if self._use_docker:
+            result = self._docker_scalar(query)
+            typical_max_lap = int(result) if result else 70
+        else:
+            with self.get_connection() as conn:
+                result = conn.execute(text(query))
+                max_lap_value = result.scalar()
+                typical_max_lap = int(max_lap_value) if max_lap_value else 70
+
+        # Cache the result
+        _circuit_typical_max_lap_cache[circuit_key] = typical_max_lap
+        return typical_max_lap
 
 
 # Global service instance
