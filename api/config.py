@@ -30,6 +30,7 @@ class APIConfig:
     # Or specify "xgboost" / "random_forest" to restrict to one family
     default_model_family: str = None  # None = auto-select best across all
     default_model_strategy: str = "mae"  # "mae" = best absolute performance
+    model_run_id: str = None  # Specific run ID to load (overrides strategy)
 
     @classmethod
     def from_env(cls) -> "APIConfig":
@@ -37,6 +38,10 @@ class APIConfig:
         # Handle model_family: "auto" or empty string means None (auto-select)
         model_family_env = os.getenv("DEFAULT_MODEL_FAMILY", "auto")
         model_family = None if model_family_env in ("auto", "", "none") else model_family_env
+
+        # Handle model_run_id: empty string or "none" means None
+        model_run_id_env = os.getenv("MODEL_RUN_ID", "")
+        model_run_id = None if model_run_id_env in ("", "none") else model_run_id_env
 
         return cls(
             host=os.getenv("API_HOST", "0.0.0.0"),
@@ -51,6 +56,7 @@ class APIConfig:
             mlflow_experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME", "F1PA_LapTime_Prediction"),
             default_model_family=model_family,
             default_model_strategy=os.getenv("DEFAULT_MODEL_STRATEGY", "mae"),
+            model_run_id=model_run_id,
         )
 
     @property

@@ -60,15 +60,12 @@ def _load_scope(scope_path: Path) -> pd.DataFrame:
     if "session_key" not in df.columns:
         raise ValueError("Le scope doit contenir 'session_key'.")
 
-    # Parsing dates scope (UTC)
     for col in ["date_start", "date_end", "session_start_hour_utc"]:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
 
-    # Unicité garantie par script 01, mais on sécurise
     df = df.drop_duplicates(subset=["session_key"], keep="first").copy()
 
-    # Index pour join rapide
     df = df.set_index("session_key", drop=False)
     return df
 
@@ -79,34 +76,26 @@ def _enrich_one_session(
     session_key: int,
 ) -> tuple[pd.DataFrame, int, int]:
     """
-    Ajoute les métadata de sesifon à chaque lap.
-    Retourne: df_out, n_missing_meta, n_missing_lap_date_start
+    Enrich lap data with session metadata.
+    Returns: enriched DataFrame, count of missing metadata, count of missing lap date_start.
     """
-    # 1) Récupération métadonnées scope (1 ligne)
     if session_key not in df_scope_idx.index:
-        # pas de métadonnées => on garde les laps mais on trace
         meta = None
     else:
         meta = df_scope_idx.loc[session_key].to_dict()
 
-    # 2) Parsing date_start lap-level
-    # On attend un timestamp (souvent ISO avec timezone). Coerce si null.
     if "date_start" in df_laps.columns:
         df_laps["date_start"] = pd.to_datetime(df_laps["date_start"], errors="coerce", utc=True)
     else:
-        # si la colonne est absente, on la crée vide (ça sera détecté)
         df_laps["date_start"] = pd.NaT
 
     n_missing_lap_date_start = int(df_laps["date_start"].isna().sum())
 
-    # 3) Lap hour UTC (clé join météo hourly)
     df_laps["lap_hour_utc"] = df_laps["date_start"].dt.floor("H")
 
-    # 4) Ajout des colonnes scope (si meta disponible)
     n_missing_meta = 0
     if meta is None:
         n_missing_meta = len(df_laps)
-        # On ajoute quelques colonnes attendues à NA pour garder un schéma stable
         for col in [
             "year",
             "meeting_key",
@@ -125,7 +114,6 @@ def _enrich_one_session(
             if col not in df_laps.columns:
                 df_laps[col] = pd.NA
     else:
-        # On évite les collisions de noms : date_start/date_end côté scope deviennent *_session
         mapping = {
             "year": "year",
             "meeting_key": "meeting_key",
@@ -145,20 +133,15 @@ def _enrich_one_session(
             if src in meta:
                 df_laps[dst] = meta[src]
 
-        # Sanity check optionnel : si meeting_key existe dans les laps et scope, on vérifie cohérence
         if "meeting_key" in df_laps.columns and "meeting_key" in meta and pd.notna(meta["meeting_key"]):
-            # si des laps ont meeting_key manquant, on ne pénalise pas
             mism = df_laps["meeting_key"].dropna().astype(int) != int(meta["meeting_key"])
             if mism.any():
-                # On ne plante pas : on trace via une colonne
                 df_laps["meeting_key_mismatch"] = mism
             else:
                 df_laps["meeting_key_mismatch"] = False
 
-    # 5) Colonnes techniques utiles
     df_laps["session_key"] = session_key
 
-    # 6) Tri lisible
     sort_cols = [c for c in ["driver_number", "lap_number"] if c in df_laps.columns]
     if sort_cols:
         df_laps = df_laps.sort_values(sort_cols).reset_index(drop=True)

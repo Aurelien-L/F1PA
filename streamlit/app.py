@@ -429,6 +429,7 @@ def render_prediction_tab():
         # Predict button
         if st.button("🏁 Predict Lap Time", use_container_width=True):
             # Build features
+            # Note: year is automatically set to 2025 by the API for hypothetical predictions
             features = {
                 "driver_number": selected_driver["driver_number"],
                 "circuit_key": selected_circuit["circuit_key"],
@@ -439,9 +440,7 @@ def render_prediction_tab():
                 "rhum": rhum,
                 "pres": pres,
                 "lap_number": lap_number,
-                "year": DEFAULT_YEAR,
                 "circuit_avg_laptime": circuit_avg,
-                "driver_avg_laptime": driver_avg_laptime,
                 "driver_perf_score": driver_perf_score
             }
 

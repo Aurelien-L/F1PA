@@ -97,6 +97,7 @@ def _load_all(in_dir: Path, fmt: str, limit_sessions: int = 0) -> pd.DataFrame:
 
 
 def _ensure_datetime_utc(df: pd.DataFrame, col: str) -> None:
+    """Parse column as UTC datetime if present."""
     if col in df.columns:
         df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
 
@@ -112,38 +113,32 @@ class QualitySummary:
 
 
 def build_dataset(df: pd.DataFrame) -> tuple[pd.DataFrame, QualitySummary]:
+    """Build final ML dataset with type casting, quality checks, and filtering."""
     if df.empty:
         raise ValueError("Dataset vide : aucun fichier session chargé.")
 
-    # Parsing dates (si présentes)
     _ensure_datetime_utc(df, "date_start_session")
     _ensure_datetime_utc(df, "date_end_session")
     _ensure_datetime_utc(df, "lap_hour_utc")
     _ensure_datetime_utc(df, "weather_hour_utc")
 
-    # Sélection colonnes (si elles existent)
     desired = ID_COLS + CONTEXT_COLS + SPORT_COLS + WEATHER_COLS + [TARGET_COL]
     keep = [c for c in desired if c in df.columns]
     df = df[keep + [c for c in ["__source_file"] if c in df.columns]].copy()
 
-    # Cast types identifiants
     for c in ["year", "meeting_key", "session_key", "circuit_key", "driver_number", "lap_number"]:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce").astype("Int64")
 
-    # Cast numériques
     for c in SPORT_COLS + WEATHER_COLS + [TARGET_COL]:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    # Contrôles qualité
-    # Duplicats sur la clé composite (meeting_key, session_key, driver_number, lap_number)
     key_cols = [c for c in ["meeting_key", "session_key", "driver_number", "lap_number"] if c in df.columns]
     n_duplicates_key = int(df.duplicated(subset=key_cols).sum()) if key_cols else 0
 
     missing_target = int(df[TARGET_COL].isna().sum()) if TARGET_COL in df.columns else len(df)
 
-    # météo : missing sur au moins une variable / toutes les variables
     weather_present = [c for c in WEATHER_COLS if c in df.columns]
     if weather_present:
         missing_weather_any = int(df[weather_present].isna().any(axis=1).sum())
@@ -161,9 +156,6 @@ def build_dataset(df: pd.DataFrame) -> tuple[pd.DataFrame, QualitySummary]:
         missing_weather_all=missing_weather_all,
     )
 
-    # Filtre final MVP (optionnel mais sain) :
-    # - target non nulle
-    # - météo présente (au moins une variable météo)
     before = len(df)
     if TARGET_COL in df.columns:
         df = df[df[TARGET_COL].notna()].copy()
@@ -171,7 +163,6 @@ def build_dataset(df: pd.DataFrame) -> tuple[pd.DataFrame, QualitySummary]:
         df = df[df[weather_present].notna().any(axis=1)].copy()
     _log(f"Filtre final (target+météo): {before} -> {len(df)}")
 
-    # Tri pour lisibilité
     sort_cols = [c for c in ["year", "meeting_key", "session_key", "driver_number", "lap_number"] if c in df.columns]
     if sort_cols:
         df = df.sort_values(sort_cols).reset_index(drop=True)
@@ -204,7 +195,6 @@ def main() -> int:
     df_dataset.to_csv(out_path, index=False)
     _log(f"Export dataset ML: {out_path} | rows={len(df_dataset)} cols={df_dataset.shape[1]}")
 
-    # Report qualité
     report = {
         "input_dir": str(in_dir),
         "output_path": str(out_path),
@@ -223,7 +213,6 @@ def main() -> int:
 
     _log(f"Report: {report_path}")
 
-    # Code retour : 0 si dataset non vide
     return 0 if len(df_dataset) > 0 else 2
 
 

@@ -173,16 +173,16 @@ pytest tests/test_api.py::test_health_endpoint -v
 ```
 
 **Tests disponibles** :
-- **43 tests unitaires** (peuvent tourner sans services Docker ni données) :
+- **42 tests unitaires** (peuvent tourner sans services Docker ni données) :
   - 11 tests API (`test_api.py`)
-  - 7 tests API étendus (`test_api_extended.py`)
+  - 6 tests API étendus (`test_api_extended.py`)
   - 4 tests configuration (`test_config.py`)
-  - 14 tests validation données (`test_data_validation.py`) - Nouveaux ! ✨
+  - 14 tests validation données (`test_data_validation.py`)
   - 7 tests preprocessing (`test_preprocessing.py`)
 - **11 tests d'intégration** (nécessitent `docker compose up -d`) :
   - 6 tests API complète (`test_api_extended.py`)
   - 5 tests service ML (`test_ml_service.py`)
-- **Total** : 54 tests, 100% de pass
+- **Total** : 53 tests, 100% de pass
 
 **Note** : Les tests d'intégration sont automatiquement exclus du pipeline GitHub Actions pour garder le CI/CD simple et rapide.
 
@@ -344,11 +344,6 @@ sudo apt-get install docker-compose-plugin
 docker --version
 docker compose version
 ```
-
-**Configuration minimale serveur** :
-- 4GB RAM
-- 20GB disque
-- Ports : 5000, 5432, 8000, 8501, 3000, 9090
 
 #### 2. Cloner et configurer
 
@@ -600,18 +595,6 @@ tar -xzf mlartifacts_backup.tar.gz
 docker run --rm -v f1pa_grafana_data:/data -v $(pwd):/backup alpine tar -xzf /backup/grafana_backup.tar.gz -C /data
 ```
 
-### Nettoyage cache Python
-
-```bash
-# Nettoyer __pycache__
-find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
-find . -type f -name "*.pyc" -delete
-find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null
-rm -rf htmlcov/ .coverage
-```
-
----
-
 ## 📚 Ressources
 
 - [README principal](README.md) - Vue d'ensemble du projet
@@ -619,5 +602,3 @@ rm -rf htmlcov/ .coverage
 - [Monitoring README](monitoring/README.md) - Guide monitoring détaillé
 - [RGPD](RGPD.md) - Conformité RGPD
 - [API Documentation](http://localhost:8000/docs) - Swagger UI
-
-

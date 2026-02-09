@@ -14,10 +14,48 @@ from api.models import (
     LapFeatures,
 )
 from api.services.ml_service import ml_service
+from api.services.db_service import db_service
 from api.auth import get_current_user
 from api.middleware.metrics import track_prediction, track_prediction_error
 
 router = APIRouter(prefix="/predict", tags=["Predictions"])
+
+
+def enrich_features(features_dict: dict) -> dict:
+    """
+    Enrich features with auto-calculated performance metrics if not provided.
+
+    Auto-calculates from database:
+    - circuit_avg_laptime: Average lap time for the circuit
+    - driver_perf_score: Driver performance score (driver_circuit_avg - circuit_avg)
+    - year: Fixed to 2025 (last training year) for hypothetical predictions
+
+    This ensures predictions use accurate driver performance data instead of
+    requiring users to manually provide these complex metrics.
+    """
+    driver_number = features_dict["driver_number"]
+    circuit_key = features_dict["circuit_key"]
+
+    # Auto-fill year to last training year (2025) for hypothetical predictions
+    # This makes the API a prediction tool independent of the actual calendar year
+    if features_dict.get("year") is None:
+        features_dict["year"] = 2025
+
+    # Auto-calculate circuit_avg_laptime if not provided
+    if features_dict.get("circuit_avg_laptime") is None:
+        circuit_avg = db_service.get_circuit_avg_laptime(circuit_key)
+        if circuit_avg is not None:
+            features_dict["circuit_avg_laptime"] = circuit_avg
+        else:
+            # Fallback to reasonable default
+            features_dict["circuit_avg_laptime"] = 90.0
+
+    # Auto-calculate driver_perf_score if not provided
+    if features_dict.get("driver_perf_score") is None:
+        perf_score = db_service.get_driver_perf_score(driver_number, circuit_key)
+        features_dict["driver_perf_score"] = perf_score
+
+    return features_dict
 
 
 @router.get("/model", response_model=ModelInfoResponse)
@@ -52,15 +90,13 @@ async def get_model_info(username: str = Depends(get_current_user)):
 @router.post("/lap", response_model=PredictionResponse)
 async def predict_lap_time(request: PredictionRequest, username: str = Depends(get_current_user)):
     """
-    Predict lap time PERFORMANCE for a driver on a circuit.
+    Predict lap time for a driver on a circuit.
 
-    This model predicts lap time BEFORE the lap starts, based on:
-    - Driver historical performance
-    - Circuit characteristics
-    - Weather conditions
-    - Expected speeds
-
-    Note: Sector times are NOT used (they would make prediction trivial).
+    The model predicts lap time BEFORE the lap starts, based on:
+    - Expected speeds (st_speed, i1_speed, i2_speed)
+    - Weather conditions (temp, rhum, pres)
+    - Driver historical performance (auto-calculated)
+    - Circuit characteristics (auto-calculated)
 
     **Example Request:**
     ```json
@@ -74,14 +110,15 @@ async def predict_lap_time(request: PredictionRequest, username: str = Depends(g
             "temp": 25.0,
             "rhum": 45.0,
             "pres": 1013.0,
-            "lap_number": 15,
-            "year": 2025,
-            "circuit_avg_laptime": 92.5,
-            "driver_avg_laptime": 91.2,
-            "driver_perf_score": -1.3
+            "lap_number": 15
         }
     }
     ```
+
+    **Notes:**
+    - Year is fixed to 2025 (last training year) for hypothetical predictions
+    - circuit_avg_laptime and driver_perf_score are optional (auto-calculated if omitted)
+    - Sector times are NOT used (would make prediction trivial)
     """
     if not ml_service.is_ready():
         raise HTTPException(
@@ -92,6 +129,9 @@ async def predict_lap_time(request: PredictionRequest, username: str = Depends(g
     try:
         # Convert Pydantic model to dict
         features_dict = request.features.model_dump()
+
+        # Enrich with auto-calculated performance metrics
+        features_dict = enrich_features(features_dict)
 
         # Make prediction with metrics tracking
         with track_prediction("single"):
@@ -116,17 +156,8 @@ async def predict_batch(request: BatchPredictionRequest, username: str = Depends
     """
     Predict lap times for multiple laps in a single request.
 
-    Accepts up to 1000 laps per request for efficient batch processing.
-
-    **Example Request:**
-    ```json
-    {
-        "features": [
-            {"st_speed": 310.5, "i1_speed": 295.2, ...},
-            {"st_speed": 308.2, "i1_speed": 292.1, ...}
-        ]
-    }
-    ```
+    Efficient batch processing (up to 1000 laps per request).
+    Same parameters as /lap endpoint for each feature set.
     """
     if not ml_service.is_ready():
         raise HTTPException(
@@ -137,6 +168,9 @@ async def predict_batch(request: BatchPredictionRequest, username: str = Depends
     try:
         # Convert Pydantic models to dicts
         features_list = [f.model_dump() for f in request.features]
+
+        # Enrich each feature set with auto-calculated performance metrics
+        features_list = [enrich_features(f) for f in features_list]
 
         # Make batch predictions with metrics tracking
         with track_prediction("batch"):
@@ -167,23 +201,20 @@ async def predict_simple(
     rhum: float = 50.0,
     pres: float = 1013.0,
     lap_number: int = 1,
-    year: int = 2025,
-    circuit_avg_laptime: float = 90.0,
-    driver_avg_laptime: float = 90.0,
-    driver_perf_score: float = 0.0,
+    circuit_avg_laptime: float = None,
+    driver_perf_score: float = None,
     username: str = Depends(get_current_user)
 ):
     """
     Simple prediction endpoint with query parameters.
 
-    Useful for quick testing without building a JSON body.
+    Quick testing endpoint without JSON body. Year is fixed to 2025 (last training year).
+    Performance metrics are auto-calculated if not provided.
 
     **Example:**
     ```
     POST /predict/simple?driver_number=1&circuit_key=7&st_speed=310&i1_speed=295&i2_speed=288
     ```
-
-    Note: Use /data/circuits/{id}/avg-laptime to get circuit_avg_laptime
     """
     if not ml_service.is_ready():
         raise HTTPException(
@@ -202,13 +233,14 @@ async def predict_simple(
             rhum=rhum,
             pres=pres,
             lap_number=lap_number,
-            year=year,
             circuit_avg_laptime=circuit_avg_laptime,
-            driver_avg_laptime=driver_avg_laptime,
             driver_perf_score=driver_perf_score
         )
 
-        prediction = ml_service.predict(features.model_dump())
+        # Enrich with auto-calculated performance metrics
+        features_dict = enrich_features(features.model_dump())
+
+        prediction = ml_service.predict(features_dict)
 
         return {
             "lap_duration_seconds": round(prediction, 3),

@@ -13,32 +13,32 @@ from evidently.report import Report
 from evidently.metric_preset import DataDriftPreset, RegressionPreset
 from evidently.pipeline.column_mapping import ColumnMapping  # pylint: disable=no-name-in-module
 
-# Ajouter le root du projet au path
+# Add project root to path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
 class DriftMonitor:
-    """Service de monitoring du drift ML avec Evidently."""
+    """ML drift monitoring service with Evidently."""
 
     def __init__(self, reports_dir: str = "monitoring/evidently/reports"):
         """
-        Initialise le monitor de drift.
+        Initialize drift monitor.
 
         Args:
-            reports_dir: Dossier pour stocker les rapports HTML
+            reports_dir: Directory to store HTML reports
         """
         self.reports_dir = Path(PROJECT_ROOT) / reports_dir
         self.reports_dir.mkdir(parents=True, exist_ok=True)
 
-        # Colonnes du dataset F1PA (features utilisées for les predictions)
+        # F1PA dataset columns (features used for predictions)
         self.feature_columns = [
             'driver_number', 'circuit_key', 'st_speed', 'i1_speed', 'i2_speed',
             'temp', 'rhum', 'pres', 'lap_number', 'year'
         ]
         self.target_column = 'lap_duration'
 
-        # Column mapping pour Evidently 0.4.33
+        # Column mapping for Evidently 0.4.33
         self.column_mapping = ColumnMapping(
             target=self.target_column,
             numerical_features=self.feature_columns,
@@ -52,33 +52,33 @@ class DriftMonitor:
         report_name: str = None
     ) -> str:
         """
-        Génère un rapport de drift des données.
+        Generate data drift report.
 
         Args:
-            reference_data: Données de référence (training)
-            current_data: Données actuelles (production)
-            report_name: Nom du rapport (optionnel)
+            reference_data: Reference data (training)
+            current_data: Current data (production)
+            report_name: Report name (optional)
 
         Returns:
-            Chemin du rapport HTML généré
+            Path to generated HTML report
         """
         if report_name is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_name = f"data_drift_{timestamp}"
 
-        # Sélectionner les colonnes pertinentes
+        # Select relevant columns
         ref_data = reference_data[self.feature_columns + [self.target_column]].copy()
         curr_data = current_data[self.feature_columns + [self.target_column]].copy()
 
         print(f"  Données de référence: {len(ref_data)} tours")
         print(f"  Données actuelles: {len(curr_data)} tours")
 
-        # Creater le report Evidently with DataDriftPreset
+        # Create Evidently report with DataDriftPreset
         report = Report(metrics=[
             DataDriftPreset()
         ])
 
-        # Executer le report
+        # Execute report
         print("  Exécution de l'analyse de drift...")
         report.run(
             reference_data=ref_data,
@@ -86,7 +86,7 @@ class DriftMonitor:
             column_mapping=self.column_mapping
         )
 
-        # Sauvegarder le rapport HTML
+        # Save HTML report
         report_path = self.reports_dir / f"{report_name}.html"
         report.save_html(str(report_path))
 
@@ -102,42 +102,42 @@ class DriftMonitor:
         report_name: str = None
     ) -> str:
         """
-        Génère un rapport de performance du modèle.
+        Generate model performance report.
 
         Args:
-            reference_data: Données de référence avec target
-            current_data: Données actuelles avec target
-            reference_predictions: Prédictions sur référence
-            current_predictions: Prédictions sur current
-            report_name: Nom du rapport
+            reference_data: Reference data with target
+            current_data: Current data with target
+            reference_predictions: Predictions on reference
+            current_predictions: Predictions on current
+            report_name: Report name
 
         Returns:
-            Chemin du rapport HTML
+            Path to HTML report
         """
         if report_name is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_name = f"model_performance_{timestamp}"
 
-        # Ajouter les predictions aux DataFrames
+        # Add predictions to DataFrames
         ref_data = reference_data[self.feature_columns + [self.target_column]].copy()
         ref_data['prediction'] = reference_predictions.values
 
         curr_data = current_data[self.feature_columns + [self.target_column]].copy()
         curr_data['prediction'] = current_predictions.values
 
-        # Creater le report with RegresifonPreset
+        # Create report with RegressionPreset
         report = Report(metrics=[
             RegressionPreset()
         ])
 
-        # Executer le report
+        # Execute report
         report.run(
             reference_data=ref_data,
             current_data=curr_data,
             column_mapping=self.column_mapping
         )
 
-        # Sauvegarder
+        # Save report
         report_path = self.reports_dir / f"{report_name}.html"
         report.save_html(str(report_path))
 
@@ -145,47 +145,47 @@ class DriftMonitor:
         return str(report_path)
 
     def list_reports(self) -> list:
-        """Liste tous les reports générés."""
+        """List all generated reports."""
         reports = sorted(self.reports_dir.glob("*.html"), reverse=True)
         return [str(r) for r in reports]
 
 
 def example_usage():
-    """Exemple d'utilisation du DriftMonitor."""
+    """Example usage of DriftMonitor."""
     print("\n" + "=" * 80)
-    print("F1PA - Evidently Drift Monitoring - Exemple")
+    print("F1PA - Evidently Drift Monitoring - Example")
     print("=" * 80 + "\n")
 
     from ml.config import DATA_DIR
 
     data_path = DATA_DIR / "processed" / "dataset_ml_lap_level_2023_2024_2025.csv"
     if not data_path.exists():
-        # Essayer l'ancien nom
+        # Try old name
         data_path_alt = DATA_DIR / "f1_processed_2023_2025.csv"
         if data_path_alt.exists():
             data_path = data_path_alt
         else:
-            print(f"❌ Dataset introuvable: {data_path}")
-            print("Executer d'abord: python -m data.fetch")
+            print(f"❌ Dataset not found: {data_path}")
+            print("Run first: python -m data.fetch")
             return
 
-    # Loadr les data
-    print("Chargement du dataset...")
+    # Load data
+    print("Loading dataset...")
     df = pd.read_csv(data_path)
 
-    # Simuler une split référence/production (70/30)
+    # Simulate reference/production split (70/30)
     split_idx = int(len(df) * 0.7)
     reference_data = df[:split_idx]
     current_data = df[split_idx:]
 
-    print(f"  Référence: {len(reference_data)} tours")
-    print(f"  Production: {len(current_data)} tours\n")
+    print(f"  Reference: {len(reference_data)} laps")
+    print(f"  Production: {len(current_data)} laps\n")
 
-    # Initialiser le monitor
+    # Initialize monitor
     monitor = DriftMonitor()
 
-    # Générer report de drift
-    print("Génération du report de drift...")
+    # Generate drift report
+    print("Generating drift report...")
     drift_report = monitor.generate_data_drift_report(
         reference_data=reference_data,
         current_data=current_data,
@@ -193,8 +193,8 @@ def example_usage():
     )
 
     print("\n" + "=" * 80)
-    print(f"Rapport disponible: {drift_report}")
-    print(f"Ouvrir dans le navigateur pour visualiser le drift")
+    print(f"Report available: {drift_report}")
+    print(f"Open in browser to visualize drift")
     print("=" * 80)
 
 

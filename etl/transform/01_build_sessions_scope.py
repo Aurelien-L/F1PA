@@ -14,8 +14,6 @@ DATA_EXTRACT_DIR = PROJECT_ROOT / "data" / "extract" / "openf1"
 DATA_TRANSFORM_DIR = PROJECT_ROOT / "data" / "transform"
 
 
-# Colonnes attendues côté sessions OpenF1 (selon tes exemples)
-# On reste tolérant : si certaines manquent, on les ignore proprement.
 BASE_COLS = [
     "year",
     "meeting_key",
@@ -40,9 +38,8 @@ def _log(msg: str) -> None:
 
 def _read_sessions_for_year(year: int) -> pd.DataFrame:
     """
-    Lecture prioritaire d'un fichier annuel (sessions_openf1_<year>.csv).
-    Fallback : lecture du file consolidé sesifons_openf1_2022_2025.csv if présent,
-    puis filtrage sur l'année.
+    Read annual sessions file (sessions_openf1_<year>.csv).
+    Fallback: read consolidated file sessions_openf1_2022_2025.csv if present, then filter by year.
     """
     yearly_path = DATA_EXTRACT_DIR / f"sessions_openf1_{year}.csv"
     consolidated_path = DATA_EXTRACT_DIR / "sessions_openf1_2022_2025.csv"
@@ -70,7 +67,7 @@ def build_sessions_scope(
     years: List[int],
     session_type: str = "Race",
 ) -> pd.DataFrame:
-    # 1) Charger et concaténer
+    """Build sessions scope DataFrame from annual OpenF1 sessions data."""
     dfs = []
     for y in years:
         df_y = _read_sessions_for_year(y)
@@ -78,7 +75,6 @@ def build_sessions_scope(
 
     df = pd.concat(dfs, ignore_index=True)
 
-    # 2) Garder uniquement les colonnes d'intérêt (si présentes)
     existing_cols = [c for c in BASE_COLS if c in df.columns]
     missing_cols = [c for c in BASE_COLS if c not in df.columns]
     if missing_cols:
@@ -86,7 +82,6 @@ def build_sessions_scope(
 
     df = df[existing_cols].copy()
 
-    # 3) Filtre session_type
     if "session_type" not in df.columns:
         raise ValueError("Colonne 'session_type' absente : impossible de filtrer sur Race.")
 
@@ -94,35 +89,27 @@ def build_sessions_scope(
     df = df[df["session_type"].astype(str) == session_type].copy()
     _log(f"Filtre session_type=='{session_type}': {before} -> {len(df)} lignes")
 
-    # 4) Contrôles clés minimaux
     required_keys = ["meeting_key", "session_key", "year"]
     for k in required_keys:
         if k not in df.columns:
             raise ValueError(f"Colonne clé manquante: {k}")
 
-    # 5) Parsing dates (timezone-aware, car date_start/date_end incluent +00:00)
     for col in ["date_start", "date_end"]:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
 
-    # 6) Colonnes dérivées utiles (météo hourly)
-    # session_start_hour_utc : arrondi à l'heure (floor), utile comme repère
     if "date_start" in df.columns:
         df["session_start_hour_utc"] = df["date_start"].dt.floor("H")
 
-    # 7) Nettoyage / Dédoublonnage
-    # Unicité : session_key devrait suffire (mais on garde meeting_key/year comme garde-fou)
     before = len(df)
     df = df.drop_duplicates(subset=["session_key"], keep="first")
     _log(f"Drop duplicates sur session_key: {before} -> {len(df)} lignes")
 
-    # 8) Check de cohérence temporelle simple (date_end >= date_start)
     if "date_start" in df.columns and "date_end" in df.columns:
         bad = df[(df["date_start"].notna()) & (df["date_end"].notna()) & (df["date_end"] < df["date_start"])]
         if len(bad) > 0:
             _log(f"WARNING: {len(bad)} sessions ont date_end < date_start (elles seront conservées, à investiguer).")
 
-    # 9) Tri pour lisibilité
     sort_cols = [c for c in ["year", "meeting_key", "date_start", "session_key"] if c in df.columns]
     if sort_cols:
         df = df.sort_values(sort_cols).reset_index(drop=True)
@@ -171,7 +158,6 @@ def main() -> int:
     df_scope.to_csv(out_path, index=False)
     _log(f"Export OK: {out_path} ({len(df_scope)} lignes)")
 
-    # Mini résumé pour logs
     if "year" in df_scope.columns:
         _log("Répartition par année:")
         counts = df_scope["year"].value_counts().sort_index()

@@ -49,6 +49,7 @@ services:
       - MLFLOW_EXPERIMENT_NAME=F1PA_LapTime_Prediction
       - DEFAULT_MODEL_FAMILY=auto
       - DEFAULT_MODEL_STRATEGY=mae
+      - MODEL_RUN_ID=3261c2b8d2f440848ca459cd35e67e14
     depends_on:
       - postgres
       - mlflow

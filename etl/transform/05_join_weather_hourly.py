@@ -60,20 +60,15 @@ def _extract_session_key(path: Path) -> int:
 
 
 def _circuit_id_from_wikipedia_url(url: str) -> str:
-    """
-    Extrait l'identifiant de page Wikipedia (dernier segment du path).
-    Ex:
-      https://en.wikipedia.org/wiki/Albert_Park_Circuit -> Albert_Park_Circuit
-      .../wiki/Aut%C3%B3dromo_Hermanos_Rodr%C3%ADguez -> Autódromo_Hermanos_Rodríguez
-    """
+    """Extract Wikipedia page identifier from URL (last path segment, URL-decoded)."""
     if not isinstance(url, str) or not url.strip():
         raise ValueError("URL Wikipedia vide.")
     parsed = urlparse(url)
-    path = parsed.path  # /wiki/Albert_Park_Circuit
+    path = parsed.path
     if "/wiki/" not in path:
         raise ValueError(f"URL Wikipedia inattendue: {url}")
     page = path.split("/wiki/", 1)[1]
-    page = unquote(page)  # decode %C3%B3 etc.
+    page = unquote(page)
     return page
 
 
@@ -91,7 +86,6 @@ def _load_openf1_to_wiki_map(path: Path) -> pd.DataFrame:
     df["circuit_key"] = pd.to_numeric(df["circuit_key"], errors="coerce").astype("Int64")
     df = df.dropna(subset=["circuit_key"]).copy()
 
-    # circuit_id dérivé
     df["circuit_id"] = df["wikipedia_circuit_url"].apply(_circuit_id_from_wikipedia_url)
 
     df = df.drop_duplicates(subset=["circuit_key"], keep="first").copy()
@@ -105,7 +99,6 @@ def _load_wiki_to_station_map(path: Path) -> pd.DataFrame:
 
     df = pd.read_csv(path)
 
-    # ICI : on s'aligne sur la réalité de tes colonnes
     if "circuit_url" not in df.columns:
         raise ValueError("Le mapping Meteostat doit contenir 'circuit_url' (URL Wikipedia).")
     if "station_id" not in df.columns:
@@ -255,11 +248,9 @@ def main() -> int:
 
             n_missing_weather = int(df_join[WEATHER_COLS].isna().all(axis=1).sum())
 
-            # MVP : exclure laps sans météo
             df_join = df_join[df_join[WEATHER_COLS].notna().any(axis=1)].copy()
             n_out = len(df_join)
 
-            # Traçabilité
             df_join["station_id"] = station_id
             df_join["wikipedia_circuit_url"] = wiki_url
 

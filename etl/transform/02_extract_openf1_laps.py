@@ -23,9 +23,6 @@ OPENF1_BASE_URL = "https://api.openf1.org/v1"
 LAPS_ENDPOINT = f"{OPENF1_BASE_URL}/laps"
 
 
-# Champs laps observés / utiles (MVP lap-level)
-# On reste permissif : on exporte tout ce que renvoie l'API, mais on pourra ensuite
-# sélectionner un sous-ensemble dans le script 03.
 SUGGESTED_LAP_COLS = [
     "meeting_key",
     "session_key",
@@ -40,7 +37,6 @@ SUGGESTED_LAP_COLS = [
     "st_speed",
     "i1_speed",
     "i2_speed",
-    # d'autres champs peuvent exister, on ne force pas la liste ici
 ]
 
 
@@ -54,10 +50,7 @@ def _build_http_session(
     status_forcelist: Tuple[int, ...] = (429, 500, 502, 503, 504),
     timeout_s: int = 60,
 ) -> Tuple[requests.Session, int]:
-    """
-    Return une sesifon requests configurée with retry/backoff.
-    On return ausif le timeout par défaut (en secondes) à utiliser par requête.
-    """
+    """Return a requests session configured with retry/backoff and default timeout."""
     s = requests.Session()
     retry = Retry(
         total=total_retries,
@@ -97,11 +90,9 @@ def _iter_session_keys_from_scope(scope_path: Path) -> List[Dict[str, Any]]:
         if c not in df.columns:
             raise ValueError(f"Colonne requise absente du scope: {c}")
 
-    # on récupère quelques champs utiles pour logs/partition
     keep = [c for c in ["year", "meeting_key", "session_key", "session_name", "session_type"] if c in df.columns]
     rows = df[keep].to_dict(orient="records")
 
-    # dédoublonnage au cas où
     seen = set()
     uniq_rows = []
     for r in rows:
@@ -122,13 +113,7 @@ def _openf1_get_all(
     max_pages: int = 50,
     sleep_s: float = 0.2,
 ) -> List[Dict[str, Any]]:
-    """
-    OpenF1 peut ne pas supporter limit/offset selon les endpoints.
-    Stratégie robuste :
-    - 1) Tentative sans pagination (params simples)
-    - 2) Si la réponse est une liste non vide, on la return telle quelle (MVP)
-    - 3) Option future : implémenter une pagination seulement if supportée.
-    """
+    """Fetch all data from OpenF1 endpoint (non-paginated strategy)."""
     resp = http.get(endpoint, params=params, timeout=timeout_s)
     if resp.status_code >= 400:
         txt = resp.text[:500] if resp.text else ""
@@ -142,7 +127,6 @@ def _openf1_get_all(
     if not isinstance(rows, list):
         raise RuntimeError(f"Format inattendu: attendu list, reçu {type(rows)}")
 
-    # MVP : on ne pagine pas tant qu'on n'a pas besoin
     return rows
 
 
@@ -155,6 +139,7 @@ def extract_laps_for_session(
     max_pages: int,
     sleep_s: float,
 ) -> pd.DataFrame:
+    """Extract lap data from OpenF1 API for a given session and normalize types."""
     params = {"session_key": session_key}
     rows = _openf1_get_all(
         http=http,
@@ -170,12 +155,9 @@ def extract_laps_for_session(
     if df.empty:
         raise RuntimeError("Aucun lap retourné (réponse vide). Vérifier paramètres API (pagination/endpoint).")
 
-    # Normalisation types minimale (sans sur-transformer)
-    # date_start peut être null => on parse en datetime UTC avec coercition
     if "date_start" in df.columns:
         df["date_start"] = pd.to_datetime(df["date_start"], errors="coerce", utc=True)
 
-    # Conversion numérique défensive
     for col in ["lap_number", "driver_number", "meeting_key", "session_key"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
@@ -186,7 +168,6 @@ def extract_laps_for_session(
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     if "is_pit_out_lap" in df.columns:
-        # Bool défensif (OpenF1 renvoie normalement bool)
         df["is_pit_out_lap"] = df["is_pit_out_lap"].astype("boolean")
 
     return df
@@ -272,12 +253,10 @@ def main() -> int:
 
         out_path = out_dir / f"laps_session_{session_key}.{args.format}"
         if out_path.exists() and not args.overwrite:
-            # On ne refait pas inutilement
             try:
                 if args.format == "csv":
                     n_existing = sum(1 for _ in open(out_path, "r", encoding="utf-8")) - 1
                 else:
-                    # parquet: lecture rapide
                     n_existing = len(pd.read_parquet(out_path))
             except Exception:
                 n_existing = 0
@@ -310,7 +289,6 @@ def main() -> int:
                 sleep_s=args.sleep,
             )
 
-            # On ajoute year/meeting_key si absents dans le payload (utile pour la suite)
             if year is not None and "year" not in df_laps.columns:
                 df_laps["year"] = year
             if meeting_key is not None and "meeting_key" not in df_laps.columns:
@@ -318,7 +296,6 @@ def main() -> int:
             if "session_key" not in df_laps.columns:
                 df_laps["session_key"] = session_key
 
-            # Export
             if args.format == "csv":
                 df_laps.to_csv(out_path, index=False)
             else:
@@ -353,10 +330,8 @@ def main() -> int:
                     error=str(e),
                 )
             )
-            # on continue : une session en erreur ne bloque pas tout le pipeline
             continue
 
-    # Manifest / rapport
     manifest_path = out_dir / "manifest_laps_extract.json"
     manifest = {
         "scope_path": str(scope_path),
@@ -374,7 +349,6 @@ def main() -> int:
     _log(f"Terminé. Sessions OK={ok_count} | KO={ko_count} | Rows~={n_total_rows}")
     _log(f"Manifest: {manifest_path}")
 
-    # Code retour non bloquant : 0 si tout OK, 2 si au moins une session KO
     return 0 if ko_count == 0 else 2
 
 
