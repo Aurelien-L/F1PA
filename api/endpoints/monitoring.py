@@ -1,7 +1,7 @@
 """
 F1PA API - Monitoring Endpoints
 
-Endpoints for accéder aux reports de monitoring ML (Evidently).
+Endpoints to access ML monitoring reports (Evidently).
 """
 import sys
 from pathlib import Path
@@ -24,10 +24,10 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 @router.get("/drift/reports")
 async def list_drift_reports(username: str = Depends(get_current_user)) -> List[str]:
     """
-    Liste tous les rapports de drift disponibles.
+    List all available drift reports.
 
     Returns:
-        Liste des noms de fichiers de rapports
+        List of report file names
     """
     reports = sorted(REPORTS_DIR.glob("*.html"), reverse=True)
     return [r.name for r in reports]
@@ -39,15 +39,15 @@ async def get_drift_report(
     username: str = Depends(get_current_user)
 ):
     """
-    Retrieve un report de drift spécifique.
+    Retrieve a specific drift report.
 
     Args:
-        report_name: Nom du fichier rapport (avec .html)
+        report_name: Report file name (with .html extension)
 
     Returns:
-        Contenu HTML du rapport
+        HTML content of the report
     """
-    # Sécurité: valider que le nom ne contient pas de path traversal
+    # Security: validate that name does not contain path traversal
     if ".." in report_name or "/" in report_name or "\\" in report_name:
         raise HTTPException(status_code=400, detail="Invalid report name")
 
@@ -66,10 +66,10 @@ async def get_drift_report(
 @router.get("/drift/latest")
 async def get_latest_drift_report(username: str = Depends(get_current_user)):
     """
-    Retrieve le dernier report de drift généré.
+    Retrieve the latest generated drift report.
 
     Returns:
-        Contenu HTML du dernier rapport
+        HTML content of the latest report
     """
     reports = sorted(REPORTS_DIR.glob("*.html"), reverse=True)
 
@@ -91,10 +91,10 @@ async def get_latest_drift_report(username: str = Depends(get_current_user)):
 @router.get("/status")
 async def get_monitoring_status(username: str = Depends(get_current_user)):
     """
-    Retrieve le statut du monitoring.
+    Retrieve monitoring status.
 
     Returns:
-        Informations sur les rapports disponibles
+        Information about available reports
     """
     reports = list(REPORTS_DIR.glob("*.html"))
 

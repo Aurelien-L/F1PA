@@ -1,5 +1,5 @@
 """
-Tests unitaires pour l'API FastAPI
+Unit tests for FastAPI API
 """
 import pytest
 from fastapi.testclient import TestClient
@@ -8,18 +8,18 @@ from api.main import app
 client = TestClient(app)
 
 def test_health_endpoint():
-    """Test: endpoint /health répond"""
+    """Test: /health endpoint responds"""
     response = client.get("/")
-    # Peut returnr 200 (if route définie) ou 404 (if pas de route racine)
+    # May return 200 (if route defined) or 404 (if no root route)
     assert response.status_code in [200, 404]
 
 def test_docs_endpoint():
-    """Test: documentation Swagger accessible"""
+    """Test: Swagger documentation accessible"""
     response = client.get("/docs")
     assert response.status_code == 200
 
 def test_openapi_endpoint():
-    """Test: endpoint OpenAPI JSON accessible"""
+    """Test: OpenAPI JSON endpoint accessible"""
     response = client.get("/openapi.json")
     assert response.status_code == 200
     data = response.json()
@@ -27,49 +27,49 @@ def test_openapi_endpoint():
     assert "info" in data
 
 def test_model_info_without_auth():
-    """Test: endpoint /predict/model requiert authentification"""
+    """Test: /predict/model endpoint requires authentication"""
     response = client.get("/predict/model")
     assert response.status_code == 401  # Unauthorized
 
 def test_model_info_with_auth(api_credentials):
-    """Test: endpoint /predict/model with auth (peut être 503 if services down)"""
+    """Test: /predict/model endpoint with auth (may be 503 if services down)"""
     response = client.get(
         "/predict/model",
         auth=(api_credentials["username"], api_credentials["password"])
     )
-    # 200 si tout fonctionne, 503 si DB/MLflow indisponibles
+    # 200 if working, 503 if DB/MLflow unavailable
     assert response.status_code in [200, 503]
-    
+
     if response.status_code == 200:
         data = response.json()
-        # Checkr les champs obligatoires
+        # Check required fields
         assert "model_family" in data
         assert "source" in data
         assert data["source"] in ["mlflow", "local"]
 
 def test_prediction_endpoint_structure(api_credentials, sample_features):
-    """Test: endpoint /predict/lap structure (peut être 503 if services down)"""
+    """Test: /predict/lap endpoint structure (may be 503 if services down)"""
     response = client.post(
         "/predict/lap",
         json={"features": sample_features},
         auth=(api_credentials["username"], api_credentials["password"])
     )
-    # 200 si tout fonctionne, 503 si DB/MLflow indisponibles
+    # 200 if working, 503 if DB/MLflow unavailable
     assert response.status_code in [200, 503]
-    
+
     if response.status_code == 200:
         data = response.json()
-        # Vérifier la structure de la réponse
+        # Check response structure
         assert "lap_duration_seconds" in data
         assert "lap_duration_formatted" in data
         assert "model_info" in data
-        
-        # Vérifier le format du temps
+
+        # Check time format
         assert isinstance(data["lap_duration_seconds"], (int, float))
         assert ":" in data["lap_duration_formatted"]
 
 def test_prediction_invalid_features(api_credentials):
-    """Test: prediction with features invalid échoue"""
+    """Test: prediction with invalid features fails"""
     response = client.post(
         "/predict/lap",
         json={"features": {"invalid": "data"}},
@@ -78,7 +78,7 @@ def test_prediction_invalid_features(api_credentials):
     assert response.status_code == 422  # Validation error
 
 def test_prediction_missing_auth():
-    """Test: prediction sans auth échoue"""
+    """Test: prediction without auth fails"""
     response = client.post(
         "/predict/lap",
         json={"features": {"test": "data"}}
@@ -86,7 +86,7 @@ def test_prediction_missing_auth():
     assert response.status_code == 401  # Unauthorized
 
 def test_drivers_endpoint(api_credentials):
-    """Test: endpoint /data/drito (peut être 503 if DB down)"""
+    """Test: /data/drivers endpoint (may be 503 if DB down)"""
     response = client.get(
         "/data/drivers",
         auth=(api_credentials["username"], api_credentials["password"])
@@ -103,7 +103,7 @@ def test_drivers_endpoint(api_credentials):
             assert "full_name" in driver
 
 def test_circuits_endpoint(api_credentials):
-    """Test: endpoint /data/circuits (peut être 503 if DB down)"""
+    """Test: /data/circuits endpoint (may be 503 if DB down)"""
     response = client.get(
         "/data/circuits",
         auth=(api_credentials["username"], api_credentials["password"])
@@ -120,7 +120,7 @@ def test_circuits_endpoint(api_credentials):
             assert "circuit_short_name" in circuit
 
 def test_auth_invalid_credentials():
-    """Test: authentification with mauvais credentials échoue"""
+    """Test: authentication with wrong credentials fails"""
     response = client.get(
         "/predict/model",
         auth=("wrong", "credentials")

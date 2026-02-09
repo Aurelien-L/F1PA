@@ -126,11 +126,11 @@ class MLService:
 
         IMPORTANT: Predicts lap time BEFORE the lap (no sector times used).
 
-        Features (15 total, must match training order):
+        Features (14 total, must match training order):
         - Context: year, circuit_key, driver_number, lap_number
         - Speeds: st_speed, i1_speed, i2_speed
         - Weather: temp, rhum, pres
-        - Performance: circuit_avg_laptime, driver_avg_laptime
+        - Performance: circuit_avg_laptime
         - Derived: avg_speed, lap_progress, driver_perf_score
         """
         avg_speed = (features["st_speed"] + features["i1_speed"] + features["i2_speed"]) / 3
@@ -153,7 +153,6 @@ class MLService:
             features["rhum"],
             features["pres"],
             features["circuit_avg_laptime"],
-            features["driver_avg_laptime"],
             avg_speed,
             lap_progress,
             features["driver_perf_score"],

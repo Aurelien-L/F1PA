@@ -45,10 +45,14 @@ async def lifespan(app: FastAPI):
 
     # Load ML model
     print("\n[Startup] Loading ML model...")
-    model_loaded = ml_service.load_model(
-        strategy=config.default_model_strategy,
-        model_family=config.default_model_family
-    )
+    if config.model_run_id:
+        print(f"[Startup] Using specific run ID: {config.model_run_id}")
+        model_loaded = ml_service.load_model(run_id=config.model_run_id)
+    else:
+        model_loaded = ml_service.load_model(
+            strategy=config.default_model_strategy,
+            model_family=config.default_model_family
+        )
     if model_loaded:
         info = ml_service.get_model_info()
         print(f"[Startup] Model loaded: {info.get('model_family')} ({info.get('source')})")
@@ -106,27 +110,29 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="F1PA API",
     description="""
-## F1PA - Formula 1 Predictive Assistant API
+## F1PA - Formula 1 Predictive Assistant
 
-API REST pour accéder aux données F1 et aux prédictions de temps au tour.
+API REST for F1 lap time predictions and data access.
 
-### Fonctionnalités
+### Features
 
-**Prédictions ML**
-- Prédiction de temps au tour via modèle XGBoost/RandomForest
-- Prédictions unitaires et par batch
-- Informations sur le modèle chargé
+**ML Predictions**
+- Lap time prediction before the lap starts (Random Forest model)
+- Single and batch predictions
+- Hypothetical predictions with year fixed to 2025 (last training year)
+- Auto-calculated performance metrics (circuit avg, driver performance)
 
-**Accès aux Données**
-- Circuits: liste, détails, temps moyens
-- Pilotes: liste, détails, historique
-- Sessions: recherche par année/circuit
-- Tours: données complètes avec filtres et pagination
+**Data Access**
+- Circuits: list, details, average lap times
+- Drivers: list, details, performance history
+- Sessions: search by year/circuit
+- Laps: complete data with filters and pagination
 
-### Dataset
-- 71,645 tours (2023-2025)
-- 17 features ML
-- Tracking MLflow pour la traçabilité
+### Model Information
+- **Dataset**: 71,645 laps (2023-2025)
+- **Features**: 14 features (speeds, weather, circuit/driver performance)
+- **Performance**: MAE 1.08s, R² 0.79
+- **Tracking**: MLflow for full traceability
     """,
     version="1.0.0",
     lifespan=lifespan,
@@ -136,10 +142,10 @@ API REST pour accéder aux données F1 et aux prédictions de temps au tour.
     }
 )
 
-# CORS middleware (permet les appels cross-origin)
+# CORS middleware (allows cross-origin requests)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En production, spécifier les origines autorisées
+    allow_origins=["*"],  # In production, specify allowed origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

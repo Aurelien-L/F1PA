@@ -1,7 +1,12 @@
 """
-Script for générer un report Evidently de test
+Script to generate an Evidently test report
 """
 import sys
+import io
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from pathlib import Path
 import pandas as pd
 
@@ -17,11 +22,9 @@ def main():
     print("F1PA - Génération d'un rapport Evidently de test")
     print("=" * 80 + "\n")
 
-    # Charger les données
     data_path = DATA_DIR / "processed" / "dataset_ml_lap_level_2023_2024_2025.csv"
 
     if not data_path.exists():
-        # Essayer l'ancien nom
         data_path_alt = DATA_DIR / "f1_processed_2023_2025.csv"
         if data_path_alt.exists():
             data_path = data_path_alt
@@ -34,7 +37,6 @@ def main():
     df = pd.read_csv(data_path)
     print(f"✅ {len(df)} tours chargés\n")
 
-    # Split 70/30 pour simuler référence vs production
     split_idx = int(len(df) * 0.7)
     reference_data = df[:split_idx]
     current_data = df[split_idx:]
@@ -42,10 +44,8 @@ def main():
     print(f"Données de référence (training): {len(reference_data)} tours")
     print(f"Données actuelles (production): {len(current_data)} tours\n")
 
-    # Initialiser le monitor
     monitor = DriftMonitor()
 
-    # Générer le rapport de drift
     print("Génération du rapport de drift des données...")
     report_path = monitor.generate_data_drift_report(
         reference_data=reference_data,

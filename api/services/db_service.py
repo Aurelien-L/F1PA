@@ -475,6 +475,57 @@ class DBService:
         _circuit_typical_max_lap_cache[circuit_key] = typical_max_lap
         return typical_max_lap
 
+    def get_driver_circuit_avg_laptime(self, driver_number: int, circuit_key: int) -> Optional[float]:
+        """
+        Get driver's average lap time on a specific circuit.
+
+        Returns the average lap_duration for this driver on this circuit.
+        Falls back to circuit average if driver has no data on this circuit
+        (neutral assumption: driver performs at circuit average).
+
+        Returns None if circuit has no data at all.
+        """
+        # Try circuit-specific average first
+        query = f"""
+            SELECT AVG(lap_duration)
+            FROM fact_laps
+            WHERE driver_number = {driver_number}
+            AND circuit_key = {circuit_key}
+        """
+
+        if self._use_docker:
+            result = self._docker_scalar(query)
+        else:
+            with self.get_connection() as conn:
+                result = conn.execute(text(query)).scalar()
+
+        # If driver has data on this circuit, return it
+        if result is not None:
+            return float(result)
+
+        # Fallback: circuit average (neutral - driver assumed average on this circuit)
+        return self.get_circuit_avg_laptime(circuit_key)
+
+    def get_driver_perf_score(self, driver_number: int, circuit_key: int) -> float:
+        """
+        Calculate driver performance score.
+
+        Score = driver_circuit_avg - circuit_avg
+        - Negative score: driver faster than circuit average
+        - Positive score: driver slower than circuit average
+        - Zero: driver at circuit average
+
+        Matches the calculation in ml/preprocessing.py for consistency.
+        """
+        circuit_avg = self.get_circuit_avg_laptime(circuit_key)
+        driver_circuit_avg = self.get_driver_circuit_avg_laptime(driver_number, circuit_key)
+
+        # If we can't get either value, return neutral (0.0)
+        if circuit_avg is None or driver_circuit_avg is None:
+            return 0.0
+
+        return float(driver_circuit_avg) - float(circuit_avg)
+
 
 # Global service instance
 db_service = DBService()

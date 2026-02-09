@@ -5,7 +5,7 @@
 
 Le projet F1PA traite **exclusivement des données publiques** issues de sources officielles (OpenF1 API, Wikipedia, Meteostat). **Aucune donnée personnelle identifiante (PII)** n'est collectée, stockée ou traitée.
 
-Cette documentation démontre la **démarche de conformité RGPD** dans le cadre d'un projet de certification professionnelle "Développeur IA", même si le règlement ne s'applique pas strictement en l'absence de données personnelles.
+Cette documentation présente la **démarche de conformité RGPD** du projet, même si le règlement ne s'applique pas strictement en l'absence de données personnelles.
 
 ---
 
@@ -66,7 +66,7 @@ Si le RGPD s'appliquait, la base légale serait :
 
 **Finalité principale** :
 - Développement d'un système de prédiction ML des performances en Formule 1
-- Certification professionnelle "Développeur IA"
+- Projet d'IA appliquée au sport automobile
 
 **Finalités accessoires** :
 - Analyse statistique des performances sportives
@@ -99,7 +99,7 @@ Si le RGPD s'appliquait, la base légale serait :
 | Élément | Description |
 |---------|-------------|
 | **Finalité** | Nettoyage, enrichissement, construction dataset ML |
-| **Base légale** | Intérêt légitime (recherche) |
+| **Base légale** | Intérêt légitime |
 | **Catégories de données** | Dataset agrégé 71,645 laps avec features météo |
 | **Catégories de personnes** | Pilotes F1 (anonymisés par driver_number dans ML) |
 | **Destinataires** | Équipe projet, modèle ML |
@@ -122,7 +122,7 @@ Si le RGPD s'appliquait, la base légale serait :
 | Élément | Description |
 |---------|-------------|
 | **Finalité** | Création modèle prédictif temps au tour |
-| **Base légale** | Intérêt légitime (innovation, recherche) |
+| **Base légale** | Intérêt légitime |
 | **Catégories de données** | Features numériques (vitesses, météo, performance) |
 | **Pseudonymisation** | Driver_number utilisé (pas de noms en features) |
 | **Durée conservation** | Modèles conservés tant que performants (1-2 ans) |
@@ -163,7 +163,7 @@ Si le RGPD s'appliquait, la base légale serait :
 
 **Manuelle** :
 - Révision annuelle : suppression modèles dépréciés
-- Archivage : export final pour documentation certification
+- Archivage : export final pour documentation projet
 
 ---
 
@@ -184,13 +184,13 @@ Si le RGPD s'appliquait, la base légale serait :
 **Disponibilité** :
 - ✅ Docker Compose : redémarrage automatique services
 - ✅ Backups PostgreSQL possibles via volumes Docker
-- ⚠️ Pas de haute disponibilité (projet éducatif)
+- ⚠️ Pas de haute disponibilité
 
 ### 5.2 Sécurité organisationnelle
 
 **Formation** :
-- Sensibilisation RGPD du développeur (certification professionnelle)
-- Documentation des bonnes pratiques
+- Sensibilisation RGPD et bonnes pratiques
+- Documentation des procédures
 
 **Traçabilité** :
 - Manifests JSON : horodatage, paramètres, versions
@@ -261,7 +261,7 @@ En cas de demande d'un pilote (hypothétique) :
 ### 7.2 Proportionnalité
 
 **Test de proportionnalité** :
-- ✅ Finalité légitime : recherche, éducation, innovation
+- ✅ Finalité légitime : développement système prédictif ML
 - ✅ Nécessité : données strictement requises pour prédiction ML
 - ✅ Proportionnalité : pas de collecte excessive
 - ✅ Équilibre : intérêt légitime > droits personnes (données publiques)
@@ -302,8 +302,8 @@ En cas de demande d'un pilote (hypothétique) :
 
 ### 9.2 Responsabilité
 
-**Responsable du traitement** : Aurélien LEVA 
-**DPO (Data Protection Officer)** : Non requis (pas d'entreprise, projet éducatif)
+**Responsable du traitement** : Aurélien LEVA
+**DPO (Data Protection Officer)** : Non requis (pas d'entreprise)
 
 ---
 
@@ -347,7 +347,7 @@ Le projet F1PA s'engage à :
 
 ### 11.2 Limitations du projet
 
-Ce projet est réalisé dans un **contexte éducatif** (certification professionnelle). En cas de passage en production commerciale, les mesures suivantes seraient requises :
+En cas de passage en production commerciale, les mesures suivantes seraient requises :
 
 - 🔴 Audit RGPD complet par un DPO
 - 🔴 Clauses contractuelles avec fournisseurs données
@@ -374,9 +374,9 @@ Ce projet est réalisé dans un **contexte éducatif** (certification profession
 
 ### 🎯 Statut final
 
-**Le projet F1PA est CONFORME aux exigences RGPD** dans son contexte actuel (données publiques, finalité recherche/éducation).
+**Le projet F1PA est CONFORME aux exigences RGPD** dans son contexte actuel (données publiques).
 
-Cette documentation démontre la **démarche de conformité méthodologique** requise pour la compétence C4 de la certification "Développeur IA", même si le règlement ne s'applique pas strictement en l'absence de données personnelles identifiantes.
+Cette documentation présente la **démarche de conformité méthodologique** appliquée au projet, même si le règlement ne s'applique pas strictement en l'absence de données personnelles identifiantes.
 
 ---
 

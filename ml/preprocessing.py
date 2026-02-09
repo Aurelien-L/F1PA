@@ -71,21 +71,21 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     initial_nulls = df.isnull().sum().sum()
     log(f"Initial missing values: {initial_nulls:,}")
 
-    # 1. Sport features: Imputation par groupe (circuit, driver)
+    # 1. Sport features: Group imputation (circuit, driver)
     sport_features = ['st_speed', 'i1_speed', 'i2_speed',
                       'duration_sector_1', 'duration_sector_2', 'duration_sector_3']
 
     for feat in sport_features:
         if df[feat].isnull().any():
-            # Médiane par groupe
+            # Group median
             df[feat] = df.groupby(['circuit_key', 'driver_number'])[feat].transform(
                 lambda x: x.fillna(x.median())
             )
-            # Fallback: médiane globale
+            # Fallback: global median
             df[feat].fillna(df[feat].median(), inplace=True)
             log(f"  {feat}: Imputed by (circuit, driver) group")
 
-    # 2. Weather features: Forward fill temporel + fallback
+    # 2. Weather features: Temporal forward fill + fallback
     weather_features = ['temp', 'rhum', 'pres', 'wspd', 'wdir', 'prcp', 'cldc']
 
     for feat in weather_features:
@@ -202,70 +202,70 @@ def target_encode_categorical(
     target_col: str = 'lap_duration'
 ) -> pd.DataFrame:
     """
-    Target Encoding des variables catégorielles.
+    Target Encoding of categorical variables.
 
-    PRINCIPE:
-    - Remplacer circuit_key par lap_duration MOYEN sur ce circuit
-    - Remplacer driver_number par lap_duration MOYEN pour ce pilote
-    - Encoder l'information de performance directement dans la feature
+    PRINCIPLE:
+    - Replace circuit_key with AVERAGE lap_duration for this circuit
+    - Replace driver_number with AVERAGE lap_duration for this driver
+    - Directly encode performance information into the feature
 
     JUSTIFICATION vs One-Hot Encoding:
 
-    1. Dimensionnalité:
-       - One-Hot: 24 circuits + 32 drivers = 56 colonnes binaires
-       - Target Encoding: 2 colonnes numériques
-       → Gain: 96% de colonnes en moins
+    1. Dimensionality:
+       - One-Hot: 24 circuits + 32 drivers = 56 binary columns
+       - Target Encoding: 2 numerical columns
+       → Gain: 96% fewer columns
 
-    2. Performance arbres:
-       - Arbres de décision (XGBoost, RF) gèrent mal le one-hot
-       - Ils doivent apprendre: "circuit_1 OU circuit_5 OU circuit_9 → lap lent"
-       - Avec target encoding: "circuit_avg > 95s → lap lent" (split direct)
+    2. Decision tree performance:
+       - Decision trees (XGBoost, RF) handle one-hot poorly
+       - They must learn: "circuit_1 OR circuit_5 OR circuit_9 → slow lap"
+       - With target encoding: "circuit_avg > 95s → slow lap" (direct split)
 
-    3. Généralisation:
-       - One-Hot: Chaque circuit/pilote est indépendant
-       - Target Encoding: Encode la DIFFICULTÉ du circuit et SKILL du pilote
-       → Meilleure généralisation sur nouveaux circuits similaires
+    3. Generalization:
+       - One-Hot: Each circuit/driver is independent
+       - Target Encoding: Encodes circuit DIFFICULTY and driver SKILL
+       → Better generalization on new similar circuits
 
-    4. Éviter le data leakage:
-       - ⚠️ CRUCIAL: Encoder uniquement sur train set
-       - Test set utilise les moyennes du train
-       → Pas de fuite d'information futur → passé
+    4. Avoid data leakage:
+       - ⚠️ CRUCIAL: Encode only on train set
+       - Test set uses means from train
+       → No future → past information leakage
 
     LIMITATION:
-    - Sensible au overfitting si peu de samples par catégorie
-    - Solution: Smoothing (non implémenté ici, pas nécessaire avec 71k samples)
+    - Sensitive to overfitting if few samples per category
+    - Solution: Smoothing (not implemented here, unnecessary with 71k samples)
 
     Args:
-        df: DataFrame complet
-        train_mask: Masque booléen indiquant les lignes de train
+        df: Complete DataFrame
+        train_mask: Boolean mask indicating train rows
         categorical_cols: ['circuit_key', 'driver_number', 'year']
         target_col: 'lap_duration'
 
     Returns:
-        DataFrame avec colonnes encodées: circuit_avg_laptime, driver_avg_laptime, year_avg_laptime
+        DataFrame with encoded columns: circuit_avg_laptime, driver_avg_laptime, year_avg_laptime
     """
     df = df.copy()
     log(f"Target encoding {len(categorical_cols)} categorical features...")
 
     for col in categorical_cols:
-        # Calculer moyenne target PAR CATÉGORIE sur train set uniquement
+        # Calculate target mean PER CATEGORY on train set only
         train_means = df.loc[train_mask].groupby(col)[target_col].mean()
 
-        # Nom de la nouvelle colonne
+        # New column name
         new_col = f"{col.replace('_key', '').replace('_number', '')}_avg_laptime"
 
-        # Mapper sur tout le dataset (train + test)
+        # Map on full dataset (train + test)
         df[new_col] = df[col].map(train_means)
 
-        # Fallback: Si catégorie inconnue (ne devrait pas arriver), utiliser moyenne globale train
+        # Fallback: If unknown category (should not happen), use global train mean
         global_mean = df.loc[train_mask, target_col].mean()
         df[new_col].fillna(global_mean, inplace=True)
 
         log(f"  {col} -> {new_col} (mean lap_duration per category)")
 
-    # Garder ausif les colonnes catégorielles originales for XGBoost
-    # (XGBoost peut utiliser enable_categorical=True)
-    # On aura donc: circuit_key (catégoriel) ET circuit_avg_laptime (numérique)
+    # Also keep original categorical columns for XGBoost
+    # (XGBoost can use enable_categorical=True)
+    # We'll have: circuit_key (categorical) AND circuit_avg_laptime (numerical)
     for col in categorical_cols:
         df[col] = df[col].astype('category')
 
@@ -311,22 +311,22 @@ def prepare_train_test_split_stratified(
     random_state: int = 42
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
     """
-    Split stratifié 80/20 incluant toutes les années.
+    Stratified 80/20 split including all years.
 
-    AVANTAGES:
-    - Inclut des données 2025 dans le train → réduit le concept drift
-    - Distribution équilibrée des circuits dans train et test
-    - Meilleure généralisation
+    ADVANTAGES:
+    - Includes 2025 data in train → reduces concept drift
+    - Balanced circuit distribution in train and test
+    - Better generalization
 
-    INCONVÉNIENT:
-    - Légère fuite temporelle (acceptable pour ce cas d'usage)
+    DISADVANTAGE:
+    - Slight temporal leakage (acceptable for this use case)
 
     Args:
-        df: DataFrame preprocessé
-        test_size: Proportion du test set (0.2 = 20%)
-        stratify_by: Colonne pour stratification ('circuit_key')
+        df: Preprocessed DataFrame
+        test_size: Test set proportion (0.2 = 20%)
+        stratify_by: Column for stratification ('circuit_key')
         target_col: 'lap_duration'
-        random_state: Seed pour reproductibilité
+        random_state: Seed for reproducibility
 
     Returns:
         X_train, X_test, y_train, y_test
@@ -342,7 +342,7 @@ def prepare_train_test_split_stratified(
     X = df[feature_cols]
     y = df[target_col]
 
-    # Stratification par circuit pour assurer une bonne distribution
+    # Stratify by circuit to ensure good distribution
     stratify_col = df[stratify_by]
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -356,7 +356,7 @@ def prepare_train_test_split_stratified(
     log(f"Test:  {len(X_test):,} samples ({len(X_test)/len(df)*100:.1f}%)")
     log(f"Features: {len(feature_cols)}")
 
-    # Checkr la distribution des années
+    # Check year distribution
     train_years = df.loc[X_train.index, 'year'].value_counts().sort_index()
     test_years = df.loc[X_test.index, 'year'].value_counts().sort_index()
     log(f"Train years distribution: {train_years.to_dict()}")
@@ -367,24 +367,24 @@ def prepare_train_test_split_stratified(
 
 def preprocess_pipeline(dataset_path: Path, train_years: list[int] = None, test_year: int = None):
     """
-    Pipeline preprocessing complet pour modèle de PRÉDICTION de performance.
+    Complete preprocessing pipeline for PERFORMANCE prediction model.
 
-    Étapes:
-    1. Chargement dataset
-    2. Imputation valeurs manquantes
-    3. Target encoding catégorielles (circuit_avg_laptime, driver_avg_laptime)
-    4. Création features dérivées (driver_perf_score, etc.)
-    5. Split train/test (stratifié ou temporel selon config)
+    Steps:
+    1. Load dataset
+    2. Missing value imputation
+    3. Target encoding of categorical variables (circuit_avg_laptime, driver_avg_laptime)
+    4. Create derived features (driver_perf_score, etc.)
+    5. Train/test split (stratified or temporal based on config)
 
-    IMPORTANT: Les temps secteurs sont EXCLUS car ce sont des données
-    du tour en cours, pas des prédicteurs.
+    IMPORTANT: Sector times are EXCLUDED as they represent
+    current lap data, not predictors before the lap.
 
     Returns:
         X_train, X_test, y_train, y_test, df_preprocessed
     """
     from ml.config import SPLIT_STRATEGY, TEST_SIZE, STRATIFY_BY, TRAIN_YEARS, TEST_YEAR, RANDOM_STATE
 
-    # Valeurs par défaut from config
+    # Default values from config
     if train_years is None:
         train_years = TRAIN_YEARS
     if test_year is None:
@@ -401,10 +401,10 @@ def preprocess_pipeline(dataset_path: Path, train_years: list[int] = None, test_
     # 2. Handle missing values
     df = handle_missing_values(df)
 
-    # 3. Définir le masque train for les encodages
-    # Pour le split stratifié, on utilise 80% des data for l'encodage
+    # 3. Define train mask for encoding
+    # For stratified split, use 80% of data for encoding
     if SPLIT_STRATEGY == "stratified":
-        # Pour l'encodage, on utilise un sample aléatoire de 80%
+        # For encoding, use a random 80% sample
         from sklearn.model_selection import train_test_split
         train_idx, _ = train_test_split(
             df.index, test_size=TEST_SIZE,
@@ -415,17 +415,18 @@ def preprocess_pipeline(dataset_path: Path, train_years: list[int] = None, test_
     else:
         train_mask = df['year'].isin(train_years)
 
-    # 4. Target encoding (calcule circuit_avg_laptime, driver_avg_laptime)
+    # 4. Target encoding (calculates circuit_avg_laptime, year_avg_laptime)
+    # Note: driver_avg_laptime excluded - driver_perf_score is sufficient
     df = target_encode_categorical(
         df, train_mask,
-        categorical_cols=['circuit_key', 'driver_number', 'year'],
+        categorical_cols=['circuit_key', 'year'],
         target_col='lap_duration'
     )
 
-    # 5. Create derived features (utilise train_mask for éviter leakage)
+    # 5. Create derived features (uses train_mask to avoid leakage)
     df = create_derived_features(df, train_mask)
 
-    # 6. Split train/test selon la stratégie
+    # 6. Split train/test based on strategy
     if SPLIT_STRATEGY == "stratified":
         X_train, X_test, y_train, y_test = prepare_train_test_split_stratified(
             df, test_size=TEST_SIZE, stratify_by=STRATIFY_BY, random_state=RANDOM_STATE
@@ -435,7 +436,7 @@ def preprocess_pipeline(dataset_path: Path, train_years: list[int] = None, test_
             df, train_years, test_year
         )
 
-    # Log features finales
+    # Log final features
     log(f"Final features ({len(X_train.columns)}): {list(X_train.columns)}")
 
     log("=" * 80)

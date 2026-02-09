@@ -40,12 +40,10 @@ class LapFeatures(BaseModel):
 
     # Context
     lap_number: int = Field(..., description="Expected lap number in the session", ge=1)
-    year: int = Field(..., description="Year of the race", ge=2023, le=2030)
 
-    # Performance encodings (can be fetched from /data endpoints)
-    circuit_avg_laptime: float = Field(..., description="Average lap time for this circuit (seconds)", ge=60, le=150)
-    driver_avg_laptime: float = Field(..., description="Driver's average lap time (seconds)", ge=60, le=150)
-    driver_perf_score: float = Field(0.0, description="Driver performance score (negative = faster than average)")
+    # Performance encodings (auto-calculated if not provided)
+    circuit_avg_laptime: Optional[float] = Field(None, description="Average lap time for this circuit (seconds) - auto-calculated if omitted", ge=60, le=150)
+    driver_perf_score: Optional[float] = Field(None, description="Driver performance score (negative = faster) - auto-calculated if omitted")
 
     # Pydantic V2 configuration
     model_config = ConfigDict(
@@ -59,11 +57,7 @@ class LapFeatures(BaseModel):
                 "temp": 25.0,
                 "rhum": 45.0,
                 "pres": 1013.0,
-                "lap_number": 15,
-                "year": 2025,
-                "circuit_avg_laptime": 92.5,
-                "driver_avg_laptime": 91.2,
-                "driver_perf_score": -1.3
+                "lap_number": 15
             }
         }
     )

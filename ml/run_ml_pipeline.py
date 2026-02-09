@@ -1,11 +1,11 @@
 """
 F1PA - Run Complete ML Pipeline
 
-Script tout-en-un for executer l'ensemble du pipeline ML:
-1. Vérification des prérequis
-2. Entraînement des models
-3. Affichage des results
-4. Guide d'utilisation
+All-in-one script to execute the complete ML pipeline:
+1. Prerequisites check
+2. Model training
+3. Display results
+4. Usage guide
 
 Usage:
     python ml/run_ml_pipeline.py
@@ -23,7 +23,7 @@ import urllib.error
 
 
 def log(msg: str, level: str = "INFO") -> None:
-    """Affiche un message formaté."""
+    """Display formatted message."""
     symbols = {
         "INFO": "ℹ️",
         "SUCCESS": "✅",
@@ -36,7 +36,7 @@ def log(msg: str, level: str = "INFO") -> None:
 
 
 def check_dataset() -> bool:
-    """Check que le dataset existe."""
+    """Check if dataset exists."""
     dataset_path = Path("data/processed/dataset_ml_lap_level_2023_2024_2025.csv")
     if dataset_path.exists():
         log(f"Dataset found: {dataset_path}", "SUCCESS")
@@ -48,7 +48,7 @@ def check_dataset() -> bool:
 
 
 def check_mlflow() -> bool:
-    """Check que MLflow est démarré."""
+    """Check if MLflow is running."""
     try:
         req = urllib.request.Request("http://localhost:5000/health", method='GET')
         with urllib.request.urlopen(req, timeout=2) as response:
@@ -66,7 +66,7 @@ def check_mlflow() -> bool:
 
 
 def run_training() -> bool:
-    """Lance l'entraînement des models."""
+    """Launch model training."""
     log("Starting ML training pipeline...", "STEP")
     log("This will take 5-10 minutes (4 models + GridSearch)", "INFO")
     print()
@@ -91,7 +91,7 @@ def run_training() -> bool:
 
 
 def show_results() -> None:
-    """Affiche les results et instructions."""
+    """Display results and instructions."""
     log("=" * 80, "INFO")
     log("TRAINING COMPLETE - NEXT STEPS", "SUCCESS")
     log("=" * 80, "INFO")
@@ -140,7 +140,7 @@ predictions = model.predict(X_new)
 
 
 def main():
-    """Point d'entrée principal."""
+    """Main entry point."""
     print()
     log("=" * 80, "INFO")
     log("F1PA - COMPLETE ML PIPELINE", "INFO")

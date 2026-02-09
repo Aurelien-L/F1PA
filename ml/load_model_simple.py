@@ -1,12 +1,12 @@
 """
-F1PA - Loadr les Modèles
+F1PA - Model Loading
 
-Les models peuvent être chargés de 3 façons:
-1. Depuis MLflow (dernier run) - RECOMMANDÉ for toujours avoir le dernier model
-2. Depuis MLflow (via Run ID spécifique) - Pour reproductibilité
-3. Depuis fichier local .pkl - BACKUP si MLflow indisponible
+Models can be loaded in 3 ways:
+1. From MLflow (latest run) - RECOMMENDED to always use the latest model
+2. From MLflow (specific Run ID) - For reproducibility
+3. From local .pkl file - BACKUP if MLflow unavailable
 
-Les models sont automatiquement recherchés dans MLflow sans dépendre d'IDs prédéfinis.
+Models are automatically searched in MLflow without depending on predefined IDs.
 """
 import sys
 import io
@@ -20,11 +20,11 @@ from pathlib import Path
 import mlflow
 import cloudpickle
 
-# Configuration MLflow
+# MLflow configuration
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "F1PA_LapTime_Prediction")
 
-# Chemins des modèles locaux (backup)
+# Local model paths (backup)
 MODELS_DIR = Path(__file__).parent.parent / "models"
 MODEL_XGBOOST_PATH = MODELS_DIR / "xgboost_gridsearch_model.pkl"
 MODEL_RF_PATH = MODELS_DIR / "random_forest_gridsearch_model.pkl"
@@ -32,28 +32,28 @@ MODEL_RF_PATH = MODELS_DIR / "random_forest_gridsearch_model.pkl"
 
 def get_best_model_from_mlflow(strategy="robust", model_family=None):
     """
-    Retrieve le meilleur model from MLflow selon une stratégie.
+    Retrieve the best model from MLflow according to a strategy.
 
     Args:
-        strategy: "robust" (meilleur overfitting) ou "mae" (meilleur MAE absolu)
-        model_family: "xgboost", "random_forest" ou None (tous les models)
+        strategy: "robust" (best overfitting) or "mae" (best absolute MAE)
+        model_family: "xgboost", "random_forest" or None (all models)
 
     Returns:
-        run_id: ID du meilleur run
-        metrics: Dictionnaire des métriques
+        run_id: Best run ID
+        metrics: Dictionary of metrics
     """
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-    # Récupérer l'expériment
+    # Get experiment
     experiment = mlflow.get_experiment_by_name(MLFLOW_EXPERIMENT_NAME)
     if not experiment:
         raise ValueError(f"Experiment '{MLFLOW_EXPERIMENT_NAME}' not found. Have you run training?")
 
-    # Chercher TOUS les runs (baseline + gridsearch) du bon modèle
+    # Search ALL runs (baseline + gridsearch) for the specified model family
     if model_family:
         filter_string = f"tags.model_family = '{model_family}'"
     else:
-        filter_string = ""  # Tous les modèles
+        filter_string = ""  # All models
 
     runs = mlflow.search_runs(
         experiment_ids=[experiment.experiment_id],
@@ -65,7 +65,7 @@ def get_best_model_from_mlflow(strategy="robust", model_family=None):
         raise ValueError(f"No runs found in MLflow for family '{model_family}'")
 
     if strategy == "robust":
-        # Stratégie robust: meilleur overfitting ratio (généralisation)
+        # Robust strategy: best overfitting ratio (generalization)
         robust_runs = runs[
             runs['metrics.overfitting_ratio'] < 5.0
         ].sort_values('metrics.overfitting_ratio')
@@ -76,8 +76,27 @@ def get_best_model_from_mlflow(strategy="robust", model_family=None):
         else:
             best_run = robust_runs.iloc[0]
     else:  # strategy == "mae"
-        # Stratégie MAE: meilleur MAE absolu sur test
-        best_run = runs.iloc[0]
+        # MAE strategy: best absolute MAE, but favors R² if MAE very close
+        # If top 2 runs have very close MAE (<0.01s), choose the one with better R²
+        best_mae_run = runs.iloc[0]
+        if len(runs) > 1:
+            second_run = runs.iloc[1]
+            mae_diff = abs(best_mae_run['metrics.test_mae'] - second_run['metrics.test_mae'])
+
+            # If MAE very close (<0.01s), compare by R²
+            if mae_diff < 0.01:
+                r2_best = best_mae_run.get('metrics.test_r2', 0.0)
+                r2_second = second_run.get('metrics.test_r2', 0.0)
+
+                if r2_second > r2_best:
+                    print(f"MAE very close ({mae_diff:.4f}s), selecting model with better R² ({r2_second:.3f} vs {r2_best:.3f})")
+                    best_run = second_run
+                else:
+                    best_run = best_mae_run
+            else:
+                best_run = best_mae_run
+        else:
+            best_run = best_mae_run
 
     # Get actual model family from the selected run's tags
     actual_model_family = best_run.get('tags.model_family', 'unknown')
@@ -99,24 +118,24 @@ def get_best_model_from_mlflow(strategy="robust", model_family=None):
 
 def load_model_from_mlflow(strategy="robust", model_family="xgboost", run_id=None):
     """
-    Load un model from MLflow.
+    Load a model from MLflow.
 
     Args:
-        strategy: "robust" (meilleur overfitting) ou "mae" (meilleur MAE)
-        model_family: "xgboost" ou "random_forest"
-        run_id: ID spécifique d'un run (optionnel, for reproductibilité)
+        strategy: "robust" (best overfitting) or "mae" (best MAE)
+        model_family: "xgboost" or "random_forest"
+        run_id: Specific run ID (optional, for reproducibility)
 
     Returns:
-        model: Modèle chargé from MLflow
-        info: Dictionnaire with les métadata du model
+        model: Model loaded from MLflow
+        info: Dictionary with model metadata
     """
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-    # Si pas de run_id spécifié, chercher le meilleur
+    # If no run_id specified, find the best
     if run_id is None:
         run_id, metrics = get_best_model_from_mlflow(strategy, model_family)
     else:
-        # Récupérer les métriques du run spécifié
+        # Get metrics for specified run
         client = mlflow.tracking.MlflowClient()
         run = client.get_run(run_id)
         metrics = {
@@ -130,11 +149,11 @@ def load_model_from_mlflow(strategy="robust", model_family="xgboost", run_id=Non
             'run_name': run.data.tags.get('mlflow.runName')
         }
 
-    # Télécharger l'artifact du modèle
+    # Download model artifact
     client = mlflow.tracking.MlflowClient()
     artifact_path = client.download_artifacts(run_id, "model/model_artifact.pkl")
 
-    # Charger le modèle
+    # Load model
     with open(artifact_path, 'rb') as f:
         model = cloudpickle.load(f)
 
@@ -142,7 +161,7 @@ def load_model_from_mlflow(strategy="robust", model_family="xgboost", run_id=Non
     actual_family = metrics.get('model_family', model_family) or 'unknown'
     run_name = metrics.get('run_name', 'unknown')
 
-    print(f"Modèle chargé depuis MLflow ({strategy} strategy)")
+    print(f"Model loaded from MLflow ({strategy} strategy)")
     print(f"  Model Family: {actual_family}")
     print(f"  Run Name: {run_name}")
     print(f"  Run ID: {run_id}")
@@ -173,14 +192,14 @@ def load_model_from_mlflow(strategy="robust", model_family="xgboost", run_id=Non
 
 def load_model_local(model_family="xgboost"):
     """
-    Load un model from un file local (backup if MLflow indisponible).
+    Load a model from a local file (backup if MLflow unavailable).
 
     Args:
-        model_family: "xgboost" ou "random_forest"
+        model_family: "xgboost" or "random_forest"
 
     Returns:
-        model: Modèle chargé
-        info: Dictionnaire with les métadata baifques
+        model: Loaded model
+        info: Dictionary with basic metadata
     """
     if model_family == "xgboost":
         model_path = MODEL_XGBOOST_PATH
@@ -210,11 +229,11 @@ def load_model_local(model_family="xgboost"):
 
 
 def show_models_info():
-    """Affiche les informations sur tous les models disponibles dans MLflow."""
+    """Display information about all available models in MLflow."""
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
     print("=" * 80)
-    print("MODÈLES F1PA DISPONIBLES DANS MLFLOW")
+    print("F1PA MODELS AVAILABLE IN MLFLOW")
     print("=" * 80)
 
     try:
@@ -224,7 +243,7 @@ def show_models_info():
             print("Have you run the training pipeline? (python -m ml.train)")
             return
 
-        # Récupérer tous les runs with GridSearch
+        # Retrieve all runs with GridSearch
         runs = mlflow.search_runs(
             experiment_ids=[experiment.experiment_id],
             filter_string="tags.tuning_method = 'gridsearch'",
@@ -255,9 +274,9 @@ def show_models_info():
                 print(f"  CV R²: {cv_r2:.3f}")
             print()
 
-        # Recommandations
+        # Recommendations
         print("=" * 80)
-        print("RECOMMANDATIONS")
+        print("RECOMMENDATIONS")
         print("=" * 80)
 
         xgb_runs = runs[runs['tags.model_family'] == 'xgboost']
@@ -269,7 +288,7 @@ def show_models_info():
 
             if not robust_xgb.empty:
                 best = robust_xgb.iloc[0]
-                print(f"\n✅ RECOMMANDÉ (XGBoost Robust):")
+                print(f"\n✅ RECOMMENDED (XGBoost Robust):")
                 print(f"   Run ID: {best['run_id']}")
                 print(f"   Test MAE: {best['metrics.test_mae']:.3f}s")
                 print(f"   Overfitting: {best['metrics.overfitting_ratio']:.2f}")
@@ -284,45 +303,45 @@ def show_models_info():
         print(f"  - Random Forest: {MODEL_RF_PATH} (exists: {MODEL_RF_PATH.exists()})")
 
 
-# Exemple d'utilisation
+# Example usage
 if __name__ == '__main__':
     print("\n" + "=" * 80)
-    print("F1PA - Loadment des Modèles")
+    print("F1PA - Model Loading")
     print("=" * 80)
 
-    # Afficher les models disponibles
+    # Display available models
     show_models_info()
 
-    # Loadr le model recommandé (Robust XGBoost)
+    # Load recommended model (Robust XGBoost)
     print("\n" + "=" * 80)
-    print("CHARGEMENT MODÈLE RECOMMANDÉ")
+    print("LOADING RECOMMENDED MODEL")
     print("=" * 80 + "\n")
 
-    print("Méthode 1: Depuis MLflow (stratégie 'robust' - RECOMMANDÉ)")
+    print("Method 1: From MLflow (strategy 'robust' - RECOMMENDED)")
     try:
         model, info = load_model_from_mlflow(strategy="robust", model_family="xgboost")
-        print("\n✅ Modèle chargé from MLflow with succès")
-        print(f"\nUtilisation:")
+        print("\n✅ Model loaded from MLflow successfully")
+        print(f"\nUsage:")
         print(f"  predictions = model.predict(X_new)")
     except Exception as e:
-        print(f"\n⚠️ MLflow indisponible: {e}")
-        print("\nEssayer la méthode locale comme backup...")
+        print(f"\n⚠️ MLflow unavailable: {e}")
+        print("\nTrying local method as backup...")
         print("\n" + "-" * 80 + "\n")
-        print("Méthode 2: Depuis file local .pkl (backup)")
+        print("Method 2: From local .pkl file (backup)")
         try:
             model, info = load_model_local(model_family="xgboost")
-            print("\n✅ Modèle chargé from file local")
+            print("\n✅ Model loaded from local file")
         except Exception as e:
-            print(f"❌ Erreur: {e}")
+            print(f"❌ Error: {e}")
 
     print("\n" + "=" * 80)
-    print("AUTRES EXEMPLES D'UTILISATION")
+    print("OTHER USAGE EXAMPLES")
     print("=" * 80)
-    print("\n# Charger meilleur MAE (performance absolue)")
+    print("\n# Load best MAE (absolute performance)")
     print("model, info = load_model_from_mlflow(strategy='mae', model_family='xgboost')")
-    print("\n# Charger Random Forest")
+    print("\n# Load Random Forest")
     print("model, info = load_model_from_mlflow(strategy='robust', model_family='random_forest')")
-    print("\n# Loadr un run spécifique (reproductibilité)")
+    print("\n# Load specific run (reproducibility)")
     print("model, info = load_model_from_mlflow(run_id='<RUN_ID>')")
-    print("\n# Charger depuis fichier local")
+    print("\n# Load from local file")
     print("model, info = load_model_local(model_family='xgboost')")

@@ -5,8 +5,8 @@
 <h1 align="center">F1PA - Formula 1 Predictive Assistant</h1>
 
 <p align="center">
-  <strong>Projet de certification professionnelle Développeur IA</strong><br>
-  Pipeline ETL complet + Modèle ML pour prédire les temps au tour en Formule 1
+  <strong>Pipeline ETL complet + Modèle ML pour prédire les temps au tour en Formule 1</strong><br>
+  Projet d'IA appliquée au sport automobile
 </p>
 
 <p align="center">
@@ -83,8 +83,6 @@ python scripts/etl_pipeline.py --years 2024 2025 --skip-extract  # Si données d
 python scripts/etl_pipeline.py --verify-only                      # Vérification qualité uniquement
 ```
 
-**Durée** : ~15-20 minutes (première exécution)
-
 **Résultat** :
 - Dataset ML : `data/processed/dataset_ml_lap_level_2023_2024_2025.csv`
 - Base PostgreSQL peuplée (4 tables, 71k+ laps)
@@ -97,7 +95,7 @@ python ml/run_ml_pipeline.py
 ```
 
 **Résultats** :
-- Modèle Random Forest (GridSearchCV) : MAE ~1.07s, R² 0.75
+- Modèle Random Forest (GridSearchCV) : MAE 1.08s, R² 0.79
 - Tracking MLflow : [http://localhost:5000](http://localhost:5000)
 
 ---
@@ -120,7 +118,7 @@ F1PA/
 ├── api/                 # FastAPI REST (endpoints + auth)
 ├── streamlit/           # Interface utilisateur
 ├── monitoring/          # Evidently (drift detection)
-├── tests/               # 54 tests (43 unitaires + 11 intégration)
+├── tests/               # 53 tests (unitaires + intégration)
 │
 ├── scripts/             # Scripts utilitaires (ETL, monitoring, déploiement)
 ├── .github/workflows/   # CI/CD GitHub Actions
@@ -149,7 +147,7 @@ F1PA/
 
 ### Modèle ML
 
-**Objectif** : Prédire `lap_duration` AVANT le tour (pas de sector times utilisés)
+**Objectif** : Prédire `lap_duration`
 
 **Features principales** :
 - Sport : `st_speed`, `i1_speed`, `i2_speed` (vitesses historiques)
@@ -157,56 +155,22 @@ F1PA/
 - Contexte : `circuit_avg_laptime`, `driver_perf_score`, `lap_progress`
 
 **Modèle** : Random Forest (GridSearchCV)
-- **MAE** : 1.08s (optimized)
-- **R²** : 0.77
-- **MAPE** : 0.89% (excellent)
-- **Model size** : 351 MB (production-ready)
+- **MAE** : 1.08s (test)
+- **R²** : 0.79 (test)
+- **MAPE** : 0.90%
+- **Features** : 14 features
+- **Model size** : 335 MB (production-ready)
 - **Tracking** : MLflow (hyperparams, metrics, feature importance)
 
-#### Parcours d'optimisation du modèle
+### Optimisation du modèle
 
-**Défi initial** : Modèle Random Forest trop volumineux (1.5 GB) causant des échecs d'upload vers MLflow.
+Le modèle a été optimisé à travers plusieurs itérations (v0 → v6) :
+- **Réduction taille** : 1.5 GB → 335 MB (-78%)
+- **Amélioration performance** : R² 0.77 → 0.79
+- **Optimisation features** : Suppression redondance driver_avg_laptime (15 → 14 features)
+- **Temps chargement API** : 19s → ~3s
 
-**Itérations d'optimisation** :
-
-| Version | Problème | Solution appliquée | Résultat |
-|---------|----------|-------------------|----------|
-| **v0** (baseline) | `max_depth=None` → 1.5 GB, crash MLflow | - | ❌ Bloquant production |
-| **v1** | Profondeur limitée mais toujours lourd | `max_depth=[15,20]` au lieu de `[15,None]` | 674 MB, ⚠️ encore lourd |
-| **v2** | Besoin d'un modèle plus léger | `n_estimators=[150,200]` au lieu de `[200,300]` | 449 MB, ⚠️ acceptable |
-| **v3** (final) | Cohérence train/inference + optimisation | lap_progress circuit-based + `n_estimators=150` | ✅ **351 MB** (-77%) |
-
-**Compromis** :
-- **Réduction taille** : 1.5 GB → 351 MB (-77%)
-- **Impact performance** : MAE 1.07s → 1.08s (+0.01s, négligeable)
-- **Temps de chargement** : 19s → 3.2s dans l'API (-83%)
-
-**Apprentissages clés** :
-- Profondeur illimitée (`max_depth=None`) crée un overfitting massif avec 300 arbres
-- Réduire `n_estimators` à 150 offre le meilleur compromis taille/performance
-- GridSearch a sélectionné `max_depth=20` comme optimal (équilibre précision/généralisation)
-- Cohérence train/inference (lap_progress circuit-based) améliore les performances (+0.02 R²)
-
-**Configuration de production** :
-```python
-# ml/config.py - Paramètres GridSearch Random Forest
-'n_estimators': [150, 200],      # Modèle plus léger (cible ~450 MB)
-'max_depth': [15, 20],            # Évite l'overfitting (était [15, None])
-'min_samples_leaf': [1, 2],       # Paramètres standard
-'min_samples_split': [2, 5],
-```
-
-#### Lap_progress dynamique
-
-**Problème initial** : Utilisation d'un `max_lap=70` fixe pour tous les circuits (Monaco=78 laps, Spa=44 laps).
-
-**Solution implémentée** : Calcul dynamique basé sur le max_lap typique du circuit
-
-- Calcul du **max_lap typique** par circuit (moyenne des max_laps historiques)
-- **Training** : `lap_progress = lap_number / avg(max_lap) par circuit`
-- **Inference** : Même logique via requête DB avec cache
-- Requête : `SELECT AVG(MAX(lap_number)) FROM fact_laps WHERE circuit_key = ? GROUP BY session_key`
-- **Résultat** : Cohérence training/inference pour prédictions hypothétiques ("Hamilton à Monaco")
+📚 **Documentation détaillée** : [ml/MODEL_OPTIMIZATION.md](ml/MODEL_OPTIMIZATION.md)
 
 
 ### Scalabilité Big Data
@@ -232,7 +196,7 @@ Le projet est conçu pour faciliter la migration : les requêtes SQL PostgreSQL 
 Push → Lint → Tests → Build → Deploy
        ↓      ↓       ↓
     pylint  pytest  docker
-           40 tests  images
+           53 tests  images
 ```
 
 **Workflows** :
@@ -242,7 +206,7 @@ Push → Lint → Tests → Build → Deploy
 **Tests locaux** :
 ```bash
 pylint --rcfile=pyproject.toml api/ ml/ etl/ monitoring/ streamlit/ tests/ scripts/  # Code quality
-pytest tests/ -v --cov=. --cov-report=term-missing  # 40 tests avec coverage
+pytest tests/ -v --cov=. --cov-report=term-missing  # 53 tests avec coverage
 docker compose build            # Build images
 docker compose up -d            # Lancer services
 ```
@@ -276,7 +240,8 @@ docker exec f1pa_api python scripts/generate_drift_report.py
 **Guides essentiels** :
 
 - 📘 [DEVELOPMENT.md](DEVELOPMENT.md) - **Guide complet** : développement, tests, CI/CD, déploiement
-- 📊 [monitoring/README.md](monitoring/README.md) - Monitoring ML (Prometheus, Grafana, Evidently)
+- 🤖 [ml/MODEL_OPTIMIZATION.md](ml/MODEL_OPTIMIZATION.md) - Optimisation du modèle ML (v0 → v6)
+- 📊 [monitoring/MONITORING.md](monitoring/MONITORING.md) - Monitoring ML (Prometheus, Grafana, Evidently)
 - 🔧 [scripts/README.md](scripts/README.md) - Scripts utilitaires (ETL, monitoring, déploiement)
 - 🔒 [RGPD.md](RGPD.md) - Conformité RGPD
 
@@ -286,11 +251,5 @@ docker exec f1pa_api python scripts/generate_drift_report.py
 - **Authentification** :
   - Dev/Démo : HTTP Basic Auth (username/password)
   - Production recommandée : JWT/OAuth2 pour sécurité renforcée
-
----
-
-## 👤 Auteur
-
-Projet réalisé dans le cadre de la certification **Développeur IA**
 
 ---

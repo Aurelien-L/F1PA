@@ -55,7 +55,7 @@ def log(msg: str) -> None:
 
 
 def calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    """Calculate les 4 métriques principales."""
+    """Calculate the 4 main metrics."""
     mae = mean_absolute_error(y_true, y_pred)
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
     r2 = r2_score(y_true, y_pred)
@@ -99,7 +99,7 @@ def cross_validate_model(model, X: pd.DataFrame, y: pd.Series, cv_folds: int = 5
 
 def plot_feature_importance(model, feature_names: list[str], model_name: str,
                              save_path: Path) -> pd.DataFrame:
-    """Generate graph feature importance."""
+    """Generate feature importance graph."""
     if hasattr(model, 'feature_importances_'):
         importances = model.feature_importances_
     else:
@@ -131,7 +131,7 @@ def plot_feature_importance(model, feature_names: list[str], model_name: str,
 
 def run_gridsearch(model_name: str, X_train: pd.DataFrame, y_train: pd.Series) -> tuple:
     """
-    Execute GridSearchCV for tuning léger.
+    Execute GridSearchCV for light tuning.
 
     Returns:
         (best_model, best_params, grid_results)
@@ -140,7 +140,7 @@ def run_gridsearch(model_name: str, X_train: pd.DataFrame, y_train: pd.Series) -
     log(f"GRIDSEARCH - {model_name.upper()}")
     log("=" * 80)
 
-    # Instancier modèle base
+    # Instantiate base model
     if model_name == 'xgboost':
         base_model = XGBRegressor(**FIXED_PARAMS[model_name])
     elif model_name == 'random_forest':
@@ -173,7 +173,7 @@ def run_gridsearch(model_name: str, X_train: pd.DataFrame, y_train: pd.Series) -
     log(f"Best params: {grid_search.best_params_}")
     log(f"Best CV MAE: {-grid_search.best_score_:.3f}s")
 
-    # Extraire résultats
+    # Extract results
     results_df = pd.DataFrame(grid_search.cv_results_)
     results_df['mean_test_mae'] = -results_df['mean_test_score']
     results_df['mean_train_mae'] = -results_df['mean_train_score']
@@ -188,14 +188,14 @@ def train_model_with_gridsearch(
     use_gridsearch: bool = True
 ) -> dict:
     """
-    Entraîne un model (with ou sans GridSearch) + tracking MLflow.
+    Train a model (with or without GridSearch) + MLflow tracking.
 
     Pipeline:
-    1. GridSearchCV (si use_gridsearch=True) ou baseline params
-    2. Entraînement sur train complet avec meilleurs params
-    3. Évaluation sur test
+    1. GridSearchCV (if use_gridsearch=True) or baseline params
+    2. Training on full train set with best params
+    3. Evaluation on test
     4. Feature importance
-    5. Logging MLflow complet
+    5. Complete MLflow logging
     """
     run_name = f"{model_name}_gridsearch" if use_gridsearch else f"{model_name}_baseline"
 
@@ -211,15 +211,15 @@ def train_model_with_gridsearch(
         description = f"""
 F1 Lap Time PERFORMANCE Prediction - {model_name.upper()} {'with GridSearchCV' if use_gridsearch else 'Baseline'}
 
-OBJECTIF: Prédire le time au tour d'un pilote AVANT qu'il roule
-(basé sur performance historique + conditions, PAS sur les time secteurs)
+OBJECTIVE: Predict driver lap time BEFORE they drive
+(based on historical performance + conditions, NOT on sector times)
 
 Dataset: 71,645 laps (2023-2025)
 Train: 47,266 laps (2023-2024) | Test: 24,379 laps (2025)
-Features: vitesses + météo + driver_perf_score + circuit_avg_laptime
+Features: speeds + weather + driver_perf_score + circuit_avg_laptime
 
-Note: Les time secteurs (duration_sector_*) sont EXCLUS car ils représentent
-des data du tour en cours, pas des prédicteurs.
+Note: Sector times (duration_sector_*) are EXCLUDED as they represent
+current lap data, not predictors.
         """.strip()
         mlflow.set_tag("mlflow.note.content", description)
 
@@ -235,20 +235,20 @@ des data du tour en cours, pas des prédicteurs.
 
         start_time = time.time()
 
-        # 1. Obtenir modèle (GridSearch ou baseline)
+        # 1. Get model (GridSearch or baseline)
         if use_gridsearch:
             model, best_params, grid_results = run_gridsearch(model_name, X_train, y_train)
 
-            # Log meilleurs params
+            # Log best params
             for key, value in best_params.items():
                 mlflow.log_param(f"best_{key}", value)
 
-            # Log tous les params finaux (best + fixed)
+            # Log all final params (best + fixed)
             all_params = {**FIXED_PARAMS[model_name], **best_params}
             for key, value in all_params.items():
                 mlflow.log_param(key, value)
 
-            # Sauvegarder résultats GridSearch
+            # Save GridSearch results
             grid_csv_path = REPORTS_DIR / model_name / 'gridsearch_results.csv'
             grid_csv_path.parent.mkdir(parents=True, exist_ok=True)
             grid_results.to_csv(grid_csv_path, index=False)
@@ -256,7 +256,7 @@ des data du tour en cours, pas des prédicteurs.
             log(f"  GridSearch results saved: {grid_csv_path}")
 
         else:
-            # Baseline: hyperparamètres par défaut
+            # Baseline: default hyperparameters
             params = BASELINE_MODELS[model_name]
 
             if model_name == 'xgboost':
@@ -264,7 +264,7 @@ des data du tour en cours, pas des prédicteurs.
             else:
                 model = RandomForestRegressor(**params)
 
-            # Entraîner
+            # Train
             log("Training baseline model on full train set...")
             model.fit(X_train, y_train)
 
@@ -285,21 +285,21 @@ des data du tour en cours, pas des prédicteurs.
         y_train_pred = model.predict(X_train)
         y_test_pred = model.predict(X_test)
 
-        # 4. Métriques train
+        # 4. Train metrics
         train_metrics = calculate_metrics(y_train, y_train_pred)
         log("Train metrics:")
         for key, value in train_metrics.items():
             log(f"  {key}: {value:.4f}")
             mlflow.log_metric(f'train_{key}', value)
 
-        # 5. Métriques test
+        # 5. Test metrics
         test_metrics = calculate_metrics(y_test, y_test_pred)
         log("Test metrics:")
         for key, value in test_metrics.items():
             log(f"  {key}: {value:.4f}")
             mlflow.log_metric(f'test_{key}', value)
 
-        # 5b. Métriques dérivées (overfitting, concept drift)
+        # 5b. Derived metrics (overfitting, concept drift)
         overfitting_ratio = test_metrics['mae'] / train_metrics['mae']
         mlflow.log_metric('overfitting_ratio', overfitting_ratio)
 
@@ -364,15 +364,15 @@ des data du tour en cours, pas des prédicteurs.
 
         # 8. Log modèle MLflow avec signature et input example
         try:
-            # Utiliser pyfunc pour éviter l'erreur 404 de logged-models
+            # Use pyfunc to avoid 404 logged-models error
             import cloudpickle
 
-            # Créer un artifact temporaire du modèle
+            # Create temporary model artifact
             model_artifact_path = reports_model_dir / "model_artifact.pkl"
             with open(model_artifact_path, 'wb') as f:
                 cloudpickle.dump(model, f)
 
-            # Logger le modèle comme artifact
+            # Log model as artifact
             mlflow.log_artifact(str(model_artifact_path), artifact_path="model")
 
             log("  Model logged to MLflow successfully as artifact")
@@ -380,7 +380,7 @@ des data du tour en cours, pas des prédicteurs.
             log(f"  Warning: Could not log model to MLflow: {e}")
             log("  Model will still be saved locally")
 
-        # 9. Sauvegarder modèle localement
+        # 9. Save model locally
         model_filename = f"{run_name}_model.pkl"
         model_path = MODELS_DIR / model_filename
         MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -388,7 +388,7 @@ des data du tour en cours, pas des prédicteurs.
             pickle.dump(model, f)
         log(f"Model saved: {model_path}")
 
-        # 10. Rapport JSON
+        # 10. JSON report
         report = {
             'model_name': model_name,
             'run_name': run_name,
@@ -432,7 +432,7 @@ des data du tour en cours, pas des prédicteurs.
 
 
 def compare_models(results: list[dict]) -> None:
-    """Compare les performances de tous les models."""
+    """Compare performance of all models."""
     log("=" * 80)
     log("MODEL COMPARISON")
     log("=" * 80)
@@ -452,7 +452,7 @@ def compare_models(results: list[dict]) -> None:
     df_comp = pd.DataFrame(comparison)
     print(df_comp.to_string(index=False))
 
-    # Meilleur model = MAE test le plus faible
+    # Best model = lowest test MAE
     best_idx = df_comp['Test MAE'].idxmin()
     best_model = df_comp.loc[best_idx, 'Model']
 
@@ -460,14 +460,14 @@ def compare_models(results: list[dict]) -> None:
     log(f"BEST MODEL: {best_model} (lowest Test MAE)")
     log("=" * 80)
 
-    # Sauvegarder comparaison
+    # Save comparison
     comp_path = REPORTS_DIR / 'model_comparison.csv'
     df_comp.to_csv(comp_path, index=False)
     log(f"Comparison saved: {comp_path}")
 
 
 def main():
-    """Pipeline d'entraînement complet avec GridSearch."""
+    """Complete training pipeline with GridSearch."""
     # Fix Windows encoding for MLflow emoji output
     import sys
     import io
@@ -491,25 +491,25 @@ def main():
         DATASET_PATH, TRAIN_YEARS, TEST_YEAR
     )
 
-    # 3. Entraîner les modèles
+    # 3. Train models
     results = []
 
     for model_name in ['xgboost', 'random_forest']:
-        # Baseline (sans GridSearch)
+        # Baseline (without GridSearch)
         result_baseline = train_model_with_gridsearch(
             model_name, X_train, y_train, X_test, y_test,
             use_gridsearch=False
         )
         results.append(result_baseline)
 
-        # Avec GridSearch
+        # With GridSearch
         result_gridsearch = train_model_with_gridsearch(
             model_name, X_train, y_train, X_test, y_test,
             use_gridsearch=True
         )
         results.append(result_gridsearch)
 
-    # 4. Comparer tous les modèles
+    # 4. Compare all models
     compare_models(results)
 
     log("=" * 80)

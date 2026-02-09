@@ -48,7 +48,6 @@ def download_file(url: str, out_path: Path, force: bool = False, timeout: int = 
         req = urllib.request.Request(
             url,
             headers={
-                # Identifie gentiment ton client; utile en cas de debug côté serveur/proxy
                 "User-Agent": "F1PA/1.0 (Extract Meteostat stations.db)"
             },
         )
@@ -66,14 +65,12 @@ def download_file(url: str, out_path: Path, force: bool = False, timeout: int = 
                     f.write(chunk)
                     total += len(chunk)
 
-        # Remplacement atomique (évite un fichier partiellement écrit si crash)
         os.replace(tmp_path, out_path)
 
         log(f"OK: downloaded {total} bytes")
         log(f"sha256={sha256_file(out_path)}")
 
     except Exception as e:
-        # Nettoyage en cas d’échec
         if tmp_path.exists():
             tmp_path.unlink(missing_ok=True)
         raise RuntimeError(f"Download failed: {e}") from e

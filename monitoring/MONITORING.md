@@ -219,7 +219,7 @@ monitoring/evidently/reports/
 Le rapport de test inclut l'analyse de :
 - **50 151 tours de référence** (70% du dataset)
 - **21 494 tours actuels** (30% du dataset)
-- **10 features analysées** : driver_number, circuit_key, vitesses, météo, etc.
+- **14 features analysées** : contexte (year, circuit, driver, lap), vitesses, météo, performance
 
 ## 🛠️ Configuration
 

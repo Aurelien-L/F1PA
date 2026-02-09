@@ -2,7 +2,7 @@ name: F1PA CI/CD
 
 on:
   push:
-    branches: [ main, dev, feat-* ]
+    branches: [ main, dev, feat-*, update-* ]
   pull_request:
     branches: [ main, dev ]
 

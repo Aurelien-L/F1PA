@@ -61,13 +61,12 @@ def _extract_session_key_from_filename(path: Path) -> int:
 
 
 def _safe_quantile_bounds(series: pd.Series, q_low: float, q_high: float) -> Tuple[Optional[float], Optional[float]]:
+    """Compute quantile bounds for outlier filtering. Returns None if insufficient data."""
     s = series.dropna()
     if len(s) < 20:
-        # trop peu de points : on ne fait pas de quantiles => pas de filtre outliers
         return None, None
     low = float(s.quantile(q_low))
     high = float(s.quantile(q_high))
-    # sécurité : si low>=high, on désactive
     if low >= high:
         return None, None
     return low, high
@@ -82,11 +81,8 @@ def clean_one_session_df(
     max_lap_s: Optional[float],
 ) -> Tuple[pd.DataFrame, Dict[str, int], Optional[float], Optional[float]]:
     """
-    Applique les règles de nettoyage à un DataFrame de laps (une sesifon).
-    Retourne:
-      - df_clean
-      - compteurs de suppression
-      - seuils bas/haut (quantiles) if appliqués
+    Apply cleaning rules to session lap data.
+    Returns: cleaned DataFrame, removal counters, quantile thresholds.
     """
     counters = {
         "removed_null_target": 0,
@@ -98,29 +94,22 @@ def clean_one_session_df(
     if "lap_duration" not in df.columns:
         raise ValueError("Colonne 'lap_duration' absente (target).")
 
-    # 1) cible non nulle
     before = len(df)
     df = df[df["lap_duration"].notna()].copy()
     counters["removed_null_target"] += before - len(df)
 
-    # 2) cible strictement positive
     before = len(df)
     df = df[df["lap_duration"] > 0].copy()
     counters["removed_nonpositive_target"] += before - len(df)
 
-    # 3) pit-out laps exclus
     if "is_pit_out_lap" in df.columns:
         before = len(df)
-        # is_pit_out_lap peut être bool, 0/1, ou NA => on considère True comme à exclure
         df = df[~(df["is_pit_out_lap"] == True)].copy()  # noqa: E712
         counters["removed_pit_out"] += before - len(df)
 
-    # 4) bornes fixes optionnelles (fallback)
-    # utiles si tu veux éviter des extrêmes absurdes même avant quantiles
     if min_lap_s is not None:
         before = len(df)
         df = df[df["lap_duration"] >= float(min_lap_s)].copy()
-        # on comptabilise dans outliers (car c'est un filtre de valeurs aberrantes)
         counters["removed_outliers"] += before - len(df)
 
     if max_lap_s is not None:
@@ -128,7 +117,6 @@ def clean_one_session_df(
         df = df[df["lap_duration"] <= float(max_lap_s)].copy()
         counters["removed_outliers"] += before - len(df)
 
-    # 5) filtre outliers par quantiles (recommandé)
     low_thr = None
     high_thr = None
     if use_quantiles:
@@ -138,7 +126,6 @@ def clean_one_session_df(
             df = df[(df["lap_duration"] >= low_thr) & (df["lap_duration"] <= high_thr)].copy()
             counters["removed_outliers"] += before - len(df)
 
-    # Tri / types minimaux
     sort_cols = [c for c in ["driver_number", "lap_number"] if c in df.columns]
     if sort_cols:
         df = df.sort_values(sort_cols).reset_index(drop=True)
@@ -221,7 +208,6 @@ def main() -> int:
 
         if out_path.exists() and not args.overwrite:
             _log(f"[{idx}/{len(files)}] session_key={session_key} -> skip (déjà présent)")
-            # on ne sait pas n_out sans relire; on log minimal
             stats.append(
                 CleanStats(
                     session_key=session_key,
@@ -315,7 +301,6 @@ def main() -> int:
             )
             continue
 
-    # Rapport CSV + manifest JSON
     report_df = pd.DataFrame([s.__dict__ for s in stats])
     report_csv = out_dir / "report_laps_cleaning.csv"
     report_df.to_csv(report_csv, index=False)
@@ -341,7 +326,6 @@ def main() -> int:
     _log(f"Rapport: {report_csv}")
     _log(f"Manifest: {manifest_path}")
 
-    # code retour : 0 si tout OK, 2 sinon
     n_ko = manifest["n_ko"]
     return 0 if n_ko == 0 else 2
 
