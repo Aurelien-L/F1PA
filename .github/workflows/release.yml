@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      - name: Build Docker images
+        run: |
+          docker build -t f1pa-api:${{ github.ref_name }} -f api/Dockerfile .
+          docker build -t f1pa-streamlit:${{ github.ref_name }} -f streamlit/Dockerfile .
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          body: |
+            ## F1PA Release ${{ github.ref_name }}
+
+            ### Changes in this release
+            - Check commit history for detailed changes
+
+            ### Docker Images
+            - `f1pa-api:${{ github.ref_name }}`
+            - `f1pa-streamlit:${{ github.ref_name }}`
+
+            ### Deployment
+            ```bash
+            docker compose pull
+            docker compose up -d
+            ```
+          draft: false
+          prerelease: false

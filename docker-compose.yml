@@ -14,48 +14,97 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.9.2
+    image: ghcr.io/mlflow/mlflow:v3.8.0
     container_name: f1pa_mlflow
     command: >
       mlflow server
-      --backend-store-uri sqlite:///mlflow.db
-      --default-artifact-root /mlruns
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --default-artifact-root mlflow-artifacts:
+      --artifacts-destination /mlartifacts
       --host 0.0.0.0
+      --port 5000
+      --serve-artifacts
+      --allowed-hosts "*"
     ports:
       - "5000:5000"
     volumes:
-      - ./mlruns:/mlruns
+      - ./mlartifacts:/mlartifacts
+      - ./mlflow_db:/mlflow
+    working_dir: /
 
-  airflow:
-    image: apache/airflow:2.8.1-python3.10
-    container_name: f1pa_airflow
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: f1pa_api
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=f1pa_db
+      - POSTGRES_USER=f1pa
+      - POSTGRES_PASSWORD=f1pa
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_EXPERIMENT_NAME=F1PA_LapTime_Prediction
+      - DEFAULT_MODEL_FAMILY=auto
+      - DEFAULT_MODEL_STRATEGY=mae
+      - MODEL_RUN_ID=3261c2b8d2f440848ca459cd35e67e14
     depends_on:
       - postgres
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://f1pa:f1pa@postgres/f1pa_db
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      - mlflow
     volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./etl:/opt/airflow/etl
-      - ./data:/opt/airflow/data
-      - ./requirements.txt:/requirements.txt
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./monitoring/evidently/reports:/app/monitoring/evidently/reports
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: streamlit/Dockerfile
+    container_name: f1pa_streamlit
     ports:
-      - "8080:8080"
-    command: >
-      bash -c "
-      pip install --no-cache-dir -r /requirements.txt &&
-      airflow db migrate &&
-      airflow users create
-        --username admin
-        --password admin
-        --firstname admin
-        --lastname admin
-        --role Admin
-        --email admin@f1pa.local &&
-      airflow webserver & airflow scheduler
-      "
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://api:8000
+      - API_USERNAME=f1pa
+      - API_PASSWORD=f1pa
+      - MLFLOW_URL=http://localhost:5000
+    depends_on:
+      - api
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: f1pa_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    container_name: f1pa_grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
 
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

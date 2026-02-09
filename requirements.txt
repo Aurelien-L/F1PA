@@ -4,6 +4,9 @@ numpy
 requests
 beautifulsoup4
 lxml
+matplotlib
+seaborn
+streamlit
 
 # Database
 psycopg2-binary
@@ -11,16 +14,21 @@ sqlalchemy
 
 # Weather
 meteostat
-
-# Airflow dependencies (custom tasks)
 python-dateutil
 
 # ML
 scikit-learn
 xgboost
+cloudpickle
 
 # MLflow
 mlflow
 
+# API
+fastapi
+uvicorn[standard]
+pydantic
+
 # Monitoring
-evidently
+evidently==0.4.33
+prometheus-client
